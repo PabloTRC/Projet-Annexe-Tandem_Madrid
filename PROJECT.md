@@ -1,0 +1,1 @@
+Mettez dans un fichier PROJECT.md une description de votre valeur ajoutée: votre démarche, vos choix techniques, les difficultés rencontrées, les solutions que vous avez trouvées, votre organisation, ce que vous auriez fait différemment si vous aviez plus de temps, etc
