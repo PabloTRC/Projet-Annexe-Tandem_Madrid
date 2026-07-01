@@ -1,5 +1,5 @@
 """
-Script de seed : remplit la base avec des donnees d'exemple pour tester le pipeline.
+Remplit la base avec des donnees d'exemple pour tester le pipeline.
 Cree : 1 prof, 2 classes, quelques etudiants, 1 cours avec 2 chapitres et des ressources.
 
 Usage (depuis db/, venv active) :
