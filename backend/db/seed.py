@@ -1,10 +1,11 @@
 """
-Remplit la base avec des donnees d'exemple pour tester le pipeline.
-Cree : 1 prof, 2 classes, quelques etudiants, 1 cours avec 2 chapitres et des ressources.
+Script de seed : remplit la base avec des donnees d'exemple pour tester le pipeline.
+Cree : 1 professeur, 3 eleves, 1 cours, 1 seance, du contenu, des questions et des syntheses.
 
 Usage (depuis db/, venv active) :
     python seed.py
 """
+import json
 import os
 
 import psycopg2
@@ -26,110 +27,137 @@ def seed():
     cur = conn.cursor()
 
     try:
-        # --- Prof ---
+        # --- Professeur ---
         cur.execute(
             """
-            INSERT INTO professors (email, password_hash, full_name)
-            VALUES (%s, %s, %s)
+            INSERT INTO professeur (nom, email)
+            VALUES (%s, %s)
             RETURNING id
             """,
-            ("prof.demo@example.com", "fake_hashed_password", "Jean Dupont"),
+            ("Jean Dupont", "jean.dupont@lycee-demo.fr"),
         )
-        professor_id = cur.fetchone()[0]
+        professeur_id = cur.fetchone()[0]
 
-        # --- Classes ---
-        cur.execute(
-            """
-            INSERT INTO classes (professor_id, name)
-            VALUES (%s, %s), (%s, %s)
-            RETURNING id
-            """,
-            (professor_id, "Terminale A", professor_id, "Terminale B"),
-        )
-        class_ids = [row[0] for row in cur.fetchall()]
-        class_a_id, class_b_id = class_ids
-
-        # --- Etudiants ---
-        students = [
-            (class_a_id, "Alice Martin", "alice.martin@example.com"),
-            (class_a_id, "Bruno Petit", "bruno.petit@example.com"),
-            (class_a_id, "Chloe Bernard", None),
-            (class_b_id, "David Roux", "david.roux@example.com"),
-            (class_b_id, "Emma Fontaine", None),
+        # --- Eleves ---
+        eleves = [
+            ("Alice Martin", "terminale_a"),
+            ("Bruno Petit", "terminale_a"),
+            ("Chloe Bernard", "terminale_b"),
         ]
-        cur.executemany(
+        cur.execute(
             """
-            INSERT INTO students (class_id, full_name, email)
-            VALUES (%s, %s, %s)
+            INSERT INTO eleve (nom, categorie)
+            VALUES (%s, %s), (%s, %s), (%s, %s)
+            RETURNING id
             """,
-            students,
+            [value for row in eleves for value in row],
         )
+        eleve_ids = [row[0] for row in cur.fetchall()]
+        alice_id, bruno_id, chloe_id = eleve_ids
 
         # --- Cours ---
         cur.execute(
             """
-            INSERT INTO courses (professor_id, title, description)
+            INSERT INTO cours (professeur_id, titre, description)
             VALUES (%s, %s, %s)
-            RETURNING id, share_token
+            RETURNING id
             """,
             (
-                professor_id,
+                professeur_id,
                 "Introduction aux suites numeriques",
                 "Cours de mathematiques sur les suites arithmetiques et geometriques.",
             ),
         )
-        course_id, share_token = cur.fetchone()
+        cours_id = cur.fetchone()[0]
 
-        # --- Rattachement du cours aux 2 classes ---
-        cur.executemany(
-            """
-            INSERT INTO course_classes (course_id, class_id)
-            VALUES (%s, %s)
-            """,
-            [(course_id, class_a_id), (course_id, class_b_id)],
-        )
-
-        # --- Chapitres ---
+        # --- Seance ---
         cur.execute(
             """
-            INSERT INTO chapters (course_id, title, position)
-            VALUES (%s, %s, %s), (%s, %s, %s)
+            INSERT INTO seance (cours_id, date, statut)
+            VALUES (%s, now(), %s)
             RETURNING id
             """,
-            (
-                course_id, "Suites arithmetiques", 0,
-                course_id, "Suites geometriques", 1,
-            ),
+            (cours_id, "en_cours"),
         )
-        chapter_ids = [row[0] for row in cur.fetchall()]
-        chapter_1_id, chapter_2_id = chapter_ids
+        seance_id = cur.fetchone()[0]
 
-        # --- Ressources ---
-        resources = [
-            (chapter_1_id, "note", "Definition et formule du terme general",
-             "Une suite (u_n) est arithmetique de raison r si u(n+1) = u_n + r pour tout n.", None, 0),
-            (chapter_1_id, "link", "Video explicative",
-             "https://example.com/videos/suites-arithmetiques", None, 1),
-            (chapter_2_id, "note", "Definition et formule du terme general",
-             "Une suite (u_n) est geometrique de raison q si u(n+1) = u_n * q pour tout n.", None, 0),
-            (chapter_2_id, "pdf", "Fiche d'exercices",
-             None, "/uploads/fiche-suites-geometriques.pdf", 1),
+        # --- Contenu ---
+        contenus = [
+            ("slide", {"titre": "Suites arithmetiques", "texte": "u(n+1) = u_n + r"}),
+            ("slide", {"titre": "Suites geometriques", "texte": "u(n+1) = u_n * q"}),
+            ("pdf", {"file_path": "/uploads/fiche-suites.pdf"}),
         ]
         cur.executemany(
             """
-            INSERT INTO resources (chapter_id, type, title, content, file_path, position)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO contenu (seance_id, type, donnees)
+            VALUES (%s, %s, %s)
             """,
-            resources,
+            [(seance_id, type_, json.dumps(donnees)) for type_, donnees in contenus],
+        )
+
+        # --- Questions (categorie encore vide, sera remplie par le LLM) ---
+        questions = [
+            (alice_id, "Est-ce que la raison peut etre negative ?"),
+            (bruno_id, "Quelle est la difference avec une suite geometrique ?"),
+            (chloe_id, "On avait deja vu ca au chapitre precedent non ?"),
+        ]
+        cur.executemany(
+            """
+            INSERT INTO question (seance_id, eleve_id, texte)
+            VALUES (%s, %s, %s)
+            """,
+            [(seance_id, eleve_id, texte) for eleve_id, texte in questions],
+        )
+
+        # --- Simulation d'une categorisation LLM a posteriori ---
+        cur.execute(
+            """
+            UPDATE question SET categorie = 'elementaire'
+            WHERE texte = 'Est-ce que la raison peut etre negative ?'
+            """
+        )
+        cur.execute(
+            """
+            UPDATE question SET categorie = 'approfondie'
+            WHERE texte = 'Quelle est la difference avec une suite geometrique ?'
+            """
+        )
+        cur.execute(
+            """
+            UPDATE question SET categorie = 'cours_precedent'
+            WHERE texte = 'On avait deja vu ca au chapitre precedent non ?'
+            """
+        )
+
+        # --- Syntheses ---
+        cur.execute(
+            """
+            INSERT INTO synthese_questions (seance_id, texte_genere)
+            VALUES (%s, %s)
+            """,
+            (
+                seance_id,
+                "3 questions posees : 1 elementaire, 1 approfondie, 1 sur du contenu deja vu.",
+            ),
+        )
+        cur.execute(
+            """
+            INSERT INTO synthese_cours (seance_id, texte_genere)
+            VALUES (%s, %s)
+            """,
+            (
+                seance_id,
+                "La seance a couvert les suites arithmetiques et geometriques, "
+                "avec un bon niveau de comprehension general.",
+            ),
         )
 
         conn.commit()
         print("Seed termine avec succes.")
-        print(f"  professor_id = {professor_id}")
-        print(f"  class_ids    = {class_ids}")
-        print(f"  course_id    = {course_id}")
-        print(f"  share_token  = {share_token}")
-        print(f"  URL publique de test : /public/courses/{share_token}")
+        print(f"  professeur_id = {professeur_id}")
+        print(f"  eleve_ids     = {eleve_ids}")
+        print(f"  cours_id      = {cours_id}")
+        print(f"  seance_id     = {seance_id}")
 
     except Exception:
         conn.rollback()
