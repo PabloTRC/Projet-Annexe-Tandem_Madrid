@@ -5,19 +5,13 @@ from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from . import models, schemas
+from . import llm, models, schemas
 from .database import get_db
 
 # Dossier ou sont stockes les fichiers uploades (PDF, etc.). Jamais expose en
 # acces statique direct : tout telechargement passe par l'endpoint dedie
 # ci-dessous, qui verifie d'abord que le contenu appartient bien a la seance.
 UPLOAD_DIR = os.path.abspath(os.environ.get("UPLOAD_DIR", "uploads"))
-
-# À faire 
-# (LLM/Ollama) : brancher ici le pipeline qui remplit `question.categorie`
-# (cours precedent / elementaire / approfondie) et qui genere le texte de
-# synthese_questions / synthese_cours. Pour l'instant ces champs sont
-# alimentes manuellement via les endpoints PATCH/POST ci-dessous.
 
 app = FastAPI(title="Assistant de cours API")
 
@@ -240,6 +234,15 @@ def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session
     if payload.eleve_id is not None:
         get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
     question = models.Question(seance_id=seance_id, **payload.model_dump())
+
+    # Categorisation automatique par le LLM. Best-effort : si Ollama n'est pas
+    # joignable, on ne bloque pas la creation de la question, on la laisse
+    # simplement sans categorie (categorie=None) pour l'instant.
+    try:
+        question.categorie = llm.categoriser_question(question.texte)
+    except llm.OllamaUnavailableError:
+        question.categorie = None
+
     db.add(question)
     db.commit()
     db.refresh(question)
@@ -303,6 +306,38 @@ def list_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
 
 
 @app.post(
+    "/seances/{seance_id}/synthese-questions/generer",
+    response_model=schemas.SyntheseQuestionsRead,
+    status_code=201,
+)
+def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
+    """
+    Declenche Ollama pour generer la synthese des questions de la seance
+    (a partir de toutes les questions deja posees, avec leur categorie) et
+    l'enregistre. Utilise pour le bouton "generer la synthese" cote prof.
+    """
+    get_or_404(db, models.Seance, seance_id, "Seance")
+    questions = (
+        db.query(models.Question)
+        .filter(models.Question.seance_id == seance_id)
+        .order_by(models.Question.id)
+        .all()
+    )
+    questions_data = [{"texte": q.texte, "categorie": q.categorie} for q in questions]
+
+    try:
+        texte_genere = llm.generer_synthese_questions(questions_data)
+    except llm.OllamaUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama indisponible : {exc}")
+
+    synthese = models.SyntheseQuestions(seance_id=seance_id, texte_genere=texte_genere)
+    db.add(synthese)
+    db.commit()
+    db.refresh(synthese)
+    return synthese
+
+
+@app.post(
     "/seances/{seance_id}/synthese-cours",
     response_model=schemas.SyntheseCoursRead,
     status_code=201,
@@ -312,6 +347,37 @@ def create_synthese_cours(
 ):
     get_or_404(db, models.Seance, seance_id, "Seance")
     synthese = models.SyntheseCours(seance_id=seance_id, **payload.model_dump())
+    db.add(synthese)
+    db.commit()
+    db.refresh(synthese)
+    return synthese
+
+
+@app.post(
+    "/seances/{seance_id}/synthese-cours/generer",
+    response_model=schemas.SyntheseCoursRead,
+    status_code=201,
+)
+def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
+    """
+    Declenche Ollama pour generer la synthese du contenu de la seance
+    (a partir de tous les contenus deja publies) et l'enregistre.
+    """
+    get_or_404(db, models.Seance, seance_id, "Seance")
+    contenus = (
+        db.query(models.Contenu)
+        .filter(models.Contenu.seance_id == seance_id)
+        .order_by(models.Contenu.id)
+        .all()
+    )
+    contenus_data = [{"type": c.type, "donnees": c.donnees} for c in contenus]
+
+    try:
+        texte_genere = llm.generer_synthese_cours(contenus_data)
+    except llm.OllamaUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama indisponible : {exc}")
+
+    synthese = models.SyntheseCours(seance_id=seance_id, texte_genere=texte_genere)
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
@@ -330,43 +396,32 @@ def list_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
         .order_by(models.SyntheseCours.id)
         .all()
     )
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import ollama 
 
-#Lancement, bdd récupérée via travail de Keanu
-app =FastAPI()
-dictionnaire = set()
 
-#Stockage des questions
-@app.post("/api/seances/questions")
-async def ajout(questions: list[str]):
-    global dictionnaire
-    for question in questions:
-        dictionnaire.add(question)
-    return {"message": f"{len(questions)} questions reçues."}
-
-#On réduit le nombre de questions en raison de la similitude des 
-@app.post("/api/seances/reduction")
-async def reduction():
-    global dictionnaire
-    if not dictionnaire:
-        raise HTTPException(status_code=400, detail="Liste de questions vide")
-    
-    #liste des questions + adresse à l'IA
-    liste_txt= "\n".join(f"- {q}" for q in dictionnaire)
-    prompt= f"""Tu es un assistant pédagogique. Voici une liste de questions posées par des élèves pendant un cours :
-    {liste_txt}. Ta mission : Réduire le nombre de questions. Pour cela, tu repèreras les similitudes entre les questions qui attendent la même réponse. 
-    Renvoie-moi uniquement la liste finale des questions reformulées de manière claire.
+@app.post("/seances/{seance_id}/questions/reduire")
+def reduire_questions_seance(seance_id: int, db: Session = Depends(get_db)):
     """
+    deduplique/reformule les questions d'une seance qui se ressemblent (meme reponse attendue), 
+    via le LLM. 
+    Contrairement à la version d'origine, travaille directement sur les questions deja en
+    base (table `question`) plutot que sur un stockage en memoire separe.
+    """
+    get_or_404(db, models.Seance, seance_id, "Seance")
+    questions = (
+        db.query(models.Question)
+        .filter(models.Question.seance_id == seance_id)
+        .order_by(models.Question.id)
+        .all()
+    )
+    if not questions:
+        raise HTTPException(status_code=400, detail="Aucune question pour cette seance")
 
-    #demande à ollama
     try:
-        reponse=await ollama.AsyncClient().chat(model='llama3', messages=[{'role': 'user', 'content': prompt}])
-        return {"questions_reduites": reponse['message']['content']}
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur avec le LLM : {str(e)}")
+        questions_reduites = llm.reduire_questions([q.texte for q in questions])
+    except llm.OllamaUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"Ollama indisponible : {exc}")
+
+    return {"questions_reduites": questions_reduites}
 
 
 
