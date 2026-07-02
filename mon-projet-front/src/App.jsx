@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import EspaceEleve from './EspaceEleve';
 
 
 // ==========================
@@ -386,11 +387,7 @@ function App() {
           
           {activePage === 'professeur' && <EspaceProfesseur />}
 
-          {activePage === 'eleve' && (
-            <div className="p-8 max-w-5xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm mt-6">
-              <h3 className="text-2xl font-bold text-slate-800">Espace Élève</h3>
-            </div>
-          )}
+          {activePage === 'eleve' && <EspaceEleve />}
 
           {activePage === 'parametres' && (
             <div className="p-8 max-w-5xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm mt-6">
