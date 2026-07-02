@@ -18,6 +18,16 @@ import ollama
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
 CATEGORIES_VALIDES = {"cours_precedent", "elementaire", "approfondie"}
 
+# Nombre max de tokens generes par reponse - une reponse plus courte est
+# generee plus vite (chaque token supplementaire coute du temps).
+OLLAMA_NUM_PREDICT = int(os.environ.get("OLLAMA_NUM_PREDICT", 200))
+
+# Duree pendant laquelle Ollama garde le modele charge en memoire apres un
+# appel. Par defaut Ollama le decharge au bout de 5 min d'inactivite, et le
+# rechargement (souvent la partie la plus lente) recommence a zero a chaque
+# fois. On l'augmente pour eviter ce cout repete pendant une session de demo.
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
+
 
 class OllamaUnavailableError(Exception):
     """Levée quand Ollama n'est pas joignable ou renvoie une reponse inexploitable."""
@@ -27,7 +37,8 @@ def _generate(prompt: str) -> str:
         response = ollama.generate(
             model=OLLAMA_MODEL,
             prompt=prompt,
-            options={"temperature": 0.2},
+            options={"temperature": 0.2, "num_predict": OLLAMA_NUM_PREDICT},
+            keep_alive=OLLAMA_KEEP_ALIVE,
         )
     except Exception as exc:  # connexion refusee, modele non telecharge, etc.
         raise OllamaUnavailableError(str(exc)) from exc
