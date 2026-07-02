@@ -1,10 +1,7 @@
 import { useState, useMemo } from 'react'
 import EspaceEleve from './EspaceEleve';
 
-
-// ==========================
 //     ESPACE PROFESSEUR
-// ==========================
 function EspaceProfesseur() {
   // Données fictives (Mock Data)
   // A remplacer plus tard par les données provenant
@@ -23,7 +20,7 @@ function EspaceProfesseur() {
     {
       id: 2,
       student: "Lucas",
-      question: "Pourquoi utilise-t-on useEffect ici ?",
+      question: "Pourquoi utilise-t-on des clés API ici ?",
       category: "React",
       recurrence: 5,
       read: false,
@@ -65,7 +62,7 @@ function EspaceProfesseur() {
   const [questions, setQuestions] = useState(initialQuestions);
   const [filter, setFilter] = useState("all");
 
-  // Filtrage
+  // catégories de questions
   const filteredQuestions = useMemo(() => {
     switch (filter) {
       case "unread":
@@ -80,7 +77,7 @@ function EspaceProfesseur() {
   // Questions épinglées
   const pinnedQuestions = questions.filter((q) => q.pinned);
 
-  // Actions
+  // Actions pour épingler
   const togglePin = (id) => {
     setQuestions((prev) =>
       prev.map((q) =>
@@ -111,10 +108,8 @@ function EspaceProfesseur() {
     <div className="h-full overflow-hidden bg-slate-50">
       <div className="grid h-full grid-cols-[1fr_340px] gap-6 p-6">
 
-        {/* =======================================================
-            COLONNE GAUCHE
-        ======================================================= */}
-        <div className="flex min-h-0 flex-col rounded-2xl bg-white shadow-sm">
+        {/* colonne de gauche */}
+        <div className="flex min-h-0 flex-col rounded-2xl bg-pink shadow-sm">
           {/* Header */}
           <div className="border-b p-6">
             <h2 className="text-2xl font-bold text-slate-800">
@@ -141,7 +136,7 @@ function EspaceProfesseur() {
                 onClick={() => setFilter("unread")}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                   filter === "unread"
-                    ? "bg-blue-600 text-white"
+                    ? "bg-purple-600 text-white"
                     : "bg-slate-100 hover:bg-slate-200"
                 }`}
               >
@@ -161,12 +156,12 @@ function EspaceProfesseur() {
             </div>
           </div>
 
-          {/* Liste scrollable */}
+          {/* Liste qui peut etre scroller */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
             {filteredQuestions.map((question) => (
               <div
                 key={question.id}
-                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+                className="rounded-xl border border-slate-200 bg-pink p-5 shadow-sm transition hover:shadow-md"
               >
                 <div className="flex items-start justify-between">
                   <div>
@@ -177,22 +172,22 @@ function EspaceProfesseur() {
                       {question.question}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                      <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-blue-700">
                         {question.category}
                       </span>
-                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">
+                      <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-orange-700">
                         {question.recurrence} élève
                         {question.recurrence > 1 ? "s" : ""}
                       </span>
                       {question.answered && (
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                        <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-green-700">
                           Répondue
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Bouton Pin */}
+                  {/* Bouton épingler */}
                   <button
                     onClick={() => togglePin(question.id)}
                     className={`rounded-lg p-2 transition ${
@@ -231,9 +226,7 @@ function EspaceProfesseur() {
           </div>
         </div>
 
-        {/* =======================================================
-            SIDEBAR DROITE
-        ======================================================= */}
+        {/* colonne de droite */}
         <aside className="flex min-h-0 flex-col rounded-2xl bg-white shadow-sm">
           <div className="border-b p-6">
             <h2 className="text-xl font-bold text-slate-800">
