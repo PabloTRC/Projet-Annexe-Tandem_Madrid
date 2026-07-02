@@ -9,18 +9,14 @@ from sqlalchemy.orm import Session, selectinload
 from . import llm, models, schemas
 from .database import get_db
 
-# Dossier ou sont stockes les fichiers uploades (PDF, etc.). Jamais expose en
-# acces statique direct : tout telechargement passe par l'endpoint dedie
-# ci-dessous, qui verifie d'abord que le contenu appartient bien a la seance.
+# Dossier ou sont stockés les fichiers uploades (PDF, etc.). Jamais exposé en accès statique direct : tout téléchargement passe par l'endpoint dedié ci-dessous, qui vérifie d'abord que le contenu appartient bien a la séance.
 UPLOAD_DIR = os.path.abspath(os.environ.get("UPLOAD_DIR", "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# Taille max acceptee par upload (10 Mo par defaut) - evite qu'un fichier
-# enorme sature le disque ou la memoire pendant la lecture.
+# Taille max acceptée par upload (10 Mo par defaut) - évite qu'un fichier énorme sature le disque ou la mémoire pendant la lecture.
 MAX_UPLOAD_SIZE = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", 10 * 1024 * 1024))
 
 app = FastAPI(title="Assistant de cours API")
-
 
 def get_or_404(db: Session, model, obj_id: int, label: str):
     obj = db.get(model, obj_id)
@@ -29,9 +25,9 @@ def get_or_404(db: Session, model, obj_id: int, label: str):
     return obj
 
 
-# ---------------------------------------------------------------------------
+
 # Professeurs
-# ---------------------------------------------------------------------------
+
 
 @app.post("/professeurs", response_model=schemas.ProfesseurRead, status_code=201)
 def create_professeur(payload: schemas.ProfesseurCreate, db: Session = Depends(get_db)):
@@ -56,9 +52,9 @@ def get_professeur(professeur_id: int, db: Session = Depends(get_db)):
     return get_or_404(db, models.Professeur, professeur_id, "Professeur")
 
 
-# ---------------------------------------------------------------------------
-# Eleves
-# ---------------------------------------------------------------------------
+
+# Elèves
+
 
 @app.post("/eleves", response_model=schemas.EleveRead, status_code=201)
 def create_eleve(payload: schemas.EleveCreate, db: Session = Depends(get_db)):
@@ -79,9 +75,9 @@ def get_eleve(eleve_id: int, db: Session = Depends(get_db)):
     return get_or_404(db, models.Eleve, eleve_id, "Eleve")
 
 
-# ---------------------------------------------------------------------------
+
 # Cours
-# ---------------------------------------------------------------------------
+
 
 @app.post("/cours", response_model=schemas.CoursRead, status_code=201)
 def create_cours(payload: schemas.CoursCreate, db: Session = Depends(get_db)):
@@ -116,9 +112,9 @@ def get_cours_full(cours_id: int, db: Session = Depends(get_db)):
     return cours
 
 
-# ---------------------------------------------------------------------------
-# Seances
-# ---------------------------------------------------------------------------
+
+# Séances
+
 
 @app.post("/seances", response_model=schemas.SeanceRead, status_code=201)
 def create_seance(payload: schemas.SeanceCreate, db: Session = Depends(get_db)):
@@ -163,9 +159,8 @@ def get_seance_full(seance_id: int, db: Session = Depends(get_db)):
     return seance
 
 
-# ---------------------------------------------------------------------------
 # Contenu
-# ---------------------------------------------------------------------------
+
 
 @app.post("/seances/{seance_id}/contenus", response_model=schemas.ContenuRead, status_code=201)
 def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session = Depends(get_db)):
@@ -177,10 +172,7 @@ def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session =
     return contenu
 
 
-@app.post(
-    "/seances/{seance_id}/contenus/upload",
-    response_model=schemas.ContenuRead,
-    status_code=201,
+@app.post("/seances/{seance_id}/contenus/upload",response_model=schemas.ContenuRead, status_code=201,
 )
 async def upload_contenu(
     seance_id: int,
@@ -189,18 +181,18 @@ async def upload_contenu(
     db: Session = Depends(get_db),
 ):
     """
-    Upload direct d'un fichier (PDF, image, etc.) via l'API : cree un
-    `contenu` dont `donnees` pointe vers le fichier sauvegarde sur le disque
+    Upload direct d'un fichier (PDF, image, etc.) via l'API : crée un
+    `contenu` dont `données` pointe vers le fichier sauvegarde sur le disque
     (dans UPLOAD_DIR). Alternative a POST /seances/{id}/contenus quand on a
-    un vrai fichier a envoyer plutot que du texte/JSON.
+    un vrai fichier à envoyer plutôt que du texte/JSON.
     """
     get_or_404(db, models.Seance, seance_id, "Seance")
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Nom de fichier manquant.")
 
-    # Nom de fichier genere (uuid) pour le stockage sur disque : evite les
-    # collisions entre deux uploads du meme nom, et empeche tout probleme de
+    # Nom de fichier généré (uuid) pour le stockage sur disque : évite les
+    # collisions entre deux uploads du même nom, et empêche tout problème de
     # path-traversal via un nom de fichier fourni par le client (on ne se
     # sert jamais du nom original pour construire un chemin sur le disque).
     extension = os.path.splitext(file.filename)[1]
@@ -219,7 +211,7 @@ async def upload_contenu(
                     )
                 f.write(chunk)
     except HTTPException:
-        # Nettoyage du fichier partiellement ecrit avant de remonter l'erreur.
+        # Nettoyage du fichier partiellement écrit avant de remonter l'erreur.
         if os.path.exists(destination):
             os.remove(destination)
         raise
@@ -255,16 +247,16 @@ def list_contenus(seance_id: int, db: Session = Depends(get_db)):
 @app.get("/seances/{seance_id}/contenus/{contenu_id}/download")
 def download_contenu(seance_id: int, contenu_id: int, db: Session = Depends(get_db)):
     """
-    Permet a un eleve (ou au prof) de telecharger le fichier associe a un
-    contenu de type "fichier"/"pdf". `donnees` doit contenir un champ
+    Permet à un élève (ou au prof) de télécharger le fichier associé à un
+    contenu de type "fichier"/"pdf". `données` doit contenir un champ
     "file_path" (chemin relatif dans UPLOAD_DIR), et optionnellement
-    "file_name" (nom affiche au telechargement).
+    "file_name" (nom affiche au téléchargement).
     """
     contenu = get_or_404(db, models.Contenu, contenu_id, "Contenu")
 
-    # On verifie que le contenu appartient bien a la seance passee dans l'URL,
-    # pas seulement qu'il existe quelque part - sinon un eleve pourrait deviner
-    # un contenu_id d'une autre seance/cours auquel il n'a pas acces.
+    # On vérifie que le contenu appartient bien à la séance passée dans l'URL,
+    # pas seulement qu'il existe quelque part - sinon un élève pourrait deviner
+    # un contenu_id d'une autre seance/cours auquel il n'a pas accès.
     if contenu.seance_id != seance_id:
         raise HTTPException(status_code=404, detail="Contenu introuvable pour cette seance")
 
@@ -276,12 +268,12 @@ def download_contenu(seance_id: int, contenu_id: int, db: Session = Depends(get_
             detail="Ce contenu n'a pas de fichier telechargeable (pas de file_path dans donnees).",
         )
 
-    # file_path est toujours traite comme relatif a UPLOAD_DIR, meme s'il
+    # file_path est toujours traité comme relatif a UPLOAD_DIR, même s'il
     # commence par "/" (os.path.join ignorerait sinon UPLOAD_DIR sur un chemin
-    # absolu) : on retire les "/" de tete avant de joindre.
+    # absolu) : on retire les "/" de tête avant de joindre.
     file_path = file_path.lstrip("/")
 
-    # Resout le chemin et verifie qu'il reste bien a l'interieur de UPLOAD_DIR
+    # Résout le chemin et vérifie qu'il reste bien à l'intérieur de UPLOAD_DIR
     # (protection contre un file_path malveillant du type "../../etc/passwd").
     full_path = os.path.normpath(os.path.join(UPLOAD_DIR, file_path))
     if os.path.commonpath([full_path, UPLOAD_DIR]) != UPLOAD_DIR:
@@ -294,9 +286,9 @@ def download_contenu(seance_id: int, contenu_id: int, db: Session = Depends(get_
     return FileResponse(full_path, filename=file_name, media_type="application/octet-stream")
 
 
-# ---------------------------------------------------------------------------
+
 # Questions
-# ---------------------------------------------------------------------------
+
 
 @app.post("/seances/{seance_id}/questions", response_model=schemas.QuestionRead, status_code=201)
 def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session = Depends(get_db)):
@@ -305,7 +297,7 @@ def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session
         get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
     question = models.Question(seance_id=seance_id, **payload.model_dump())
 
-    # Categorisation automatique par le LLM. Best-effort : si Ollama n'est pas
+    # Catégorisation automatique par le LLM. Best-effort : si Ollama n'est pas
     # joignable, on ne bloque pas la creation de la question, on la laisse
     # simplement sans categorie (categorie=None) pour l'instant.
     try:
