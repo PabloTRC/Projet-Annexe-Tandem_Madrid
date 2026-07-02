@@ -1,5 +1,289 @@
-import { useState } from 'react'
-import './App.css'
+import { useState, useMemo } from 'react'
+
+
+// ==========================
+//     ESPACE PROFESSEUR
+// ==========================
+function EspaceProfesseur() {
+  // Données fictives (Mock Data)
+  // A remplacer plus tard par les données provenant
+  // de votre API / WebSocket.
+  const initialQuestions = [
+    {
+      id: 1,
+      student: "Emma",
+      question: "Pouvez-vous réexpliquer la complexité de Dijkstra ?",
+      category: "Algorithmes",
+      recurrence: 3,
+      read: false,
+      answered: false,
+      pinned: false,
+    },
+    {
+      id: 2,
+      student: "Lucas",
+      question: "Pourquoi utilise-t-on useEffect ici ?",
+      category: "React",
+      recurrence: 5,
+      read: false,
+      answered: false,
+      pinned: true,
+    },
+    {
+      id: 3,
+      student: "Sarah",
+      question: "Quelle est la différence entre let et const ?",
+      category: "JavaScript",
+      recurrence: 1,
+      read: true,
+      answered: true,
+      pinned: false,
+    },
+    {
+      id: 4,
+      student: "Noah",
+      question: "Comment fonctionne Tailwind CSS v4 ?",
+      category: "Tailwind",
+      recurrence: 2,
+      read: false,
+      answered: false,
+      pinned: false,
+    },
+    {
+      id: 5,
+      student: "Lina",
+      question: "Peut-on utiliser plusieurs Context React ?",
+      category: "React",
+      recurrence: 4,
+      read: false,
+      answered: false,
+      pinned: false,
+    },
+  ];
+
+  const [questions, setQuestions] = useState(initialQuestions);
+  const [filter, setFilter] = useState("all");
+
+  // Filtrage
+  const filteredQuestions = useMemo(() => {
+    switch (filter) {
+      case "unread":
+        return questions.filter((q) => !q.read && !q.answered);
+      case "answered":
+        return questions.filter((q) => q.answered);
+      default:
+        return questions;
+    }
+  }, [questions, filter]);
+
+  // Questions épinglées
+  const pinnedQuestions = questions.filter((q) => q.pinned);
+
+  // Actions
+  const togglePin = (id) => {
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id === id ? { ...q, pinned: !q.pinned } : q
+      )
+    );
+  };
+
+  const markAnswered = (id) => {
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id === id
+          ? { ...q, answered: true, pinned: false, read: true }
+          : q
+      )
+    );
+  };
+
+  const markRead = (id) => {
+    setQuestions((prev) =>
+      prev.map((q) =>
+        q.id === id ? { ...q, read: true } : q
+      )
+    );
+  };
+
+  return (
+    <div className="h-full overflow-hidden bg-slate-50">
+      <div className="grid h-full grid-cols-[1fr_340px] gap-6 p-6">
+
+        {/* =======================================================
+            COLONNE GAUCHE
+        ======================================================= */}
+        <div className="flex min-h-0 flex-col rounded-2xl bg-white shadow-sm">
+          {/* Header */}
+          <div className="border-b p-6">
+            <h2 className="text-2xl font-bold text-slate-800">
+              Questions des élèves
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Gérez les questions reçues en temps réel.
+            </p>
+
+            {/* Filtres */}
+            <div className="mt-5 flex gap-3">
+              <button
+                onClick={() => setFilter("all")}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  filter === "all"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 hover:bg-slate-200"
+                }`}
+              >
+                Toutes
+              </button>
+
+              <button
+                onClick={() => setFilter("unread")}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  filter === "unread"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 hover:bg-slate-200"
+                }`}
+              >
+                Non lues
+              </button>
+
+              <button
+                onClick={() => setFilter("answered")}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  filter === "answered"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 hover:bg-slate-200"
+                }`}
+              >
+                Répondues
+              </button>
+            </div>
+          </div>
+
+          {/* Liste scrollable */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {filteredQuestions.map((question) => (
+              <div
+                key={question.id}
+                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-800">
+                      {question.student}
+                    </h3>
+                    <p className="mt-2 text-slate-600">
+                      {question.question}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                        {question.category}
+                      </span>
+                      <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">
+                        {question.recurrence} élève
+                        {question.recurrence > 1 ? "s" : ""}
+                      </span>
+                      {question.answered && (
+                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                          Répondue
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bouton Pin */}
+                  <button
+                    onClick={() => togglePin(question.id)}
+                    className={`rounded-lg p-2 transition ${
+                      question.pinned ? "bg-yellow-100" : "hover:bg-slate-100"
+                    }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={`h-5 w-5 ${
+                        question.pinned ? "text-yellow-600" : "text-slate-500"
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 4l5 5-3 1-4 6-2-2 6-4 1-3-3-3zM5 19l5-5"
+                      />
+                    </svg>
+                  </button>
+                </div>
+
+                {!question.read && (
+                  <button
+                    onClick={() => markRead(question.id)}
+                    className="mt-4 text-sm font-medium text-blue-600 hover:underline"
+                  >
+                    Marquer comme lue
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* =======================================================
+            SIDEBAR DROITE
+        ======================================================= */}
+        <aside className="flex min-h-0 flex-col rounded-2xl bg-white shadow-sm">
+          <div className="border-b p-6">
+            <h2 className="text-xl font-bold text-slate-800">
+              Questions Épinglées
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Les questions prioritaires apparaissent ici.
+            </p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            {pinnedQuestions.length === 0 && (
+              <div className="rounded-xl border-2 border-dashed border-slate-300 p-8 text-center text-sm text-slate-400">
+                Aucune question épinglée.
+              </div>
+            )}
+
+            {pinnedQuestions.map((question) => (
+              <div
+                key={question.id}
+                className="rounded-xl bg-yellow-50 border border-yellow-200 p-4"
+              >
+                <div className="font-semibold text-slate-800">
+                  {question.student}
+                </div>
+                <p className="mt-2 text-sm text-slate-600">
+                  {question.question}
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={() => togglePin(question.id)}
+                    className="rounded-lg bg-slate-200 px-3 py-2 text-sm hover:bg-slate-300"
+                  >
+                    Désépingler
+                  </button>
+                  <button
+                    onClick={() => markAnswered(question.id)}
+                    className="rounded-lg bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700"
+                  >
+                    Traitée
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  );
+}
 
 
 function App() {
@@ -7,7 +291,7 @@ function App() {
   const [activePage, setActivePage] = useState('professeur');
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans">
+    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       
       {/* 1. LE BANDEAU LATÉRAL (SIDEBAR) */}
       <aside className="w-64 bg-slate-900 text-slate-200 flex flex-col justify-between p-4 border-r border-slate-800">
@@ -80,10 +364,11 @@ function App() {
       </aside>
 
       {/* 2. ZONE DE CONTENU PRINCIPALE */}
-      <main className="flex-1 flex flex-col overflow-y-auto">
+      {/* CORRECTION : Remplacement de overflow-y-auto par overflow-hidden pour que le sous-composant gère lui-même son défilement */}
+      <main className="flex-1 flex flex-col overflow-hidden">
         
         {/* Barre de statut du haut (Header) */}
-        <header className="h-16 border-b border-slate-200 bg-white flex items-center justify-between px-8 shadow-sm">
+        <header className="h-16 border-b border-slate-200 bg-white flex items-center justify-between px-8 shadow-sm flex-shrink-0">
           <h2 className="text-sm font-semibold text-slate-500 capitalize">
             Espace actuel &gt; {activePage}
           </h2>
@@ -96,22 +381,19 @@ function App() {
         </header>
 
         {/* Zone où le contenu change selon la page sélectionnée */}
-        <div className="p-8 max-w-5xl w-full mx-auto">
+        {/* CORRECTION : Remplacement de max-w-5xl, p-8, et auto-margin par un conteneur flex-1 h-full pour laisser EspaceProfesseur respirer */}
+        <div className="flex-1 h-full min-h-0">
           
-          {activePage === 'professeur' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              
-            </div>
-          )}
+          {activePage === 'professeur' && <EspaceProfesseur />}
 
           {activePage === 'eleve' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              
+            <div className="p-8 max-w-5xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm mt-6">
+              <h3 className="text-2xl font-bold text-slate-800">Espace Élève</h3>
             </div>
           )}
 
           {activePage === 'parametres' && (
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="p-8 max-w-5xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm mt-6">
               <h3 className="text-2xl font-bold text-slate-800 mb-2">Paramètres de l'application</h3>
               <p className="text-slate-600 mb-6">Ajustez les préférences d'affichage et gérez votre profil.</p>
               <div className="flex flex-col gap-4 max-w-md">
@@ -144,4 +426,4 @@ function App() {
   );
 }
 
-export default App;
+export default App
