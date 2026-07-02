@@ -1,6 +1,7 @@
 import os
+import uuid
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -12,6 +13,11 @@ from .database import get_db
 # acces statique direct : tout telechargement passe par l'endpoint dedie
 # ci-dessous, qui verifie d'abord que le contenu appartient bien a la seance.
 UPLOAD_DIR = os.path.abspath(os.environ.get("UPLOAD_DIR", "uploads"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Taille max acceptee par upload (10 Mo par defaut) - evite qu'un fichier
+# enorme sature le disque ou la memoire pendant la lecture.
+MAX_UPLOAD_SIZE = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", 10 * 1024 * 1024))
 
 app = FastAPI(title="Assistant de cours API")
 
@@ -165,6 +171,70 @@ def get_seance_full(seance_id: int, db: Session = Depends(get_db)):
 def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session = Depends(get_db)):
     get_or_404(db, models.Seance, seance_id, "Seance")
     contenu = models.Contenu(seance_id=seance_id, **payload.model_dump())
+    db.add(contenu)
+    db.commit()
+    db.refresh(contenu)
+    return contenu
+
+
+@app.post(
+    "/seances/{seance_id}/contenus/upload",
+    response_model=schemas.ContenuRead,
+    status_code=201,
+)
+async def upload_contenu(
+    seance_id: int,
+    file: UploadFile = File(...),
+    type: str = Form("fichier"),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload direct d'un fichier (PDF, image, etc.) via l'API : cree un
+    `contenu` dont `donnees` pointe vers le fichier sauvegarde sur le disque
+    (dans UPLOAD_DIR). Alternative a POST /seances/{id}/contenus quand on a
+    un vrai fichier a envoyer plutot que du texte/JSON.
+    """
+    get_or_404(db, models.Seance, seance_id, "Seance")
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nom de fichier manquant.")
+
+    # Nom de fichier genere (uuid) pour le stockage sur disque : evite les
+    # collisions entre deux uploads du meme nom, et empeche tout probleme de
+    # path-traversal via un nom de fichier fourni par le client (on ne se
+    # sert jamais du nom original pour construire un chemin sur le disque).
+    extension = os.path.splitext(file.filename)[1]
+    stored_name = f"{uuid.uuid4().hex}{extension}"
+    destination = os.path.join(UPLOAD_DIR, stored_name)
+
+    taille = 0
+    try:
+        with open(destination, "wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                taille += len(chunk)
+                if taille > MAX_UPLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Fichier trop volumineux (max {MAX_UPLOAD_SIZE // (1024 * 1024)} Mo).",
+                    )
+                f.write(chunk)
+    except HTTPException:
+        # Nettoyage du fichier partiellement ecrit avant de remonter l'erreur.
+        if os.path.exists(destination):
+            os.remove(destination)
+        raise
+    finally:
+        await file.close()
+
+    contenu = models.Contenu(
+        seance_id=seance_id,
+        type=type,
+        donnees={
+            "file_path": stored_name,
+            "file_name": file.filename,
+            "content_type": file.content_type,
+        },
+    )
     db.add(contenu)
     db.commit()
     db.refresh(contenu)
