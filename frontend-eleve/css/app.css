@@ -1,0 +1,154 @@
+/* Styles spécifiques au frontend élève. */
+
+/* ---------- Emploi du temps (identique en convention à app.css prof) ---------- */
+
+.schedule {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.schedule-slot {
+  flex: 0 0 auto;
+  min-width: 180px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.schedule-slot--active {
+  border-color: var(--color-live);
+  background: var(--color-live-bg);
+}
+
+.schedule-slot__time {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+}
+
+.schedule-slot__title {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin-top: 2px;
+}
+
+/* ---------- Cartes de cours ---------- */
+
+.cours-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  text-decoration: none;
+  color: inherit;
+}
+
+.cours-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.cours-card__title {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+}
+
+.cours-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- Vue cours (pas lancé) ---------- */
+
+.doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.doc-row:last-child {
+  border-bottom: none;
+}
+
+.doc-row__name {
+  font-weight: 600;
+}
+
+/* ---------- Séance en direct ---------- */
+
+.live-doc-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+}
+
+.live-doc-banner__name {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.mes-questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: 96px; /* laisse la place au composer sticky */
+}
+
+.mes-questions-item {
+  padding: var(--space-3);
+}
+
+.mes-questions-item__meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin-top: 4px;
+}
+
+.question-composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  box-shadow: var(--shadow-md);
+}
+
+.question-composer input {
+  flex: 1;
+}
+
+@media (max-width: 640px) {
+  .live-doc-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .question-composer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 0;
+  }
+
+  .mes-questions {
+    padding-bottom: 88px;
+  }
+}
