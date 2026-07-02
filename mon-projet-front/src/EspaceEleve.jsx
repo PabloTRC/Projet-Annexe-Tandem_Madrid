@@ -1,65 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import api from "./api";
 
 // ==========================================================
-// 📚 Liste des matières / classes disponibles
-// (chaque entrée : id pour le back, label pour l'UI, symbole visuel)
-// ==========================================================
-const CLASSES = [
-  { id: "mathematiques", label: "Mathématiques", symbol: "π" },
-  { id: "anglais",       label: "Anglais",       symbol: "EN" },
-  { id: "francais",      label: "Français",      symbol: "FR" },
-  { id: "histoire",      label: "Histoire",      symbol: "H" },
-  { id: "informatique",  label: "Informatique",  symbol: "</>" },
-  { id: "physique",      label: "Physique",      symbol: "Φ" },
-  { id: "latin",         label: "Latin",         symbol: "L" },
-  { id: "espagnol",      label: "Espagnol",      symbol: "ES" },
-  { id: "chinois",       label: "Chinois",       symbol: "中" },
-];
-
-// ==========================================================
-// Palette de couleurs par catégorie de question (thème rose)
+// Style par categorie de question (categories reelles renvoyees
+// par le LLM cote backend : cours_precedent / elementaire / approfondie)
 // ==========================================================
 const categoryStyles = {
-  "Général":   "bg-pink-100 text-pink-700",
-  "Technique": "bg-fuchsia-100 text-fuchsia-700",
-  "Exercice":  "bg-rose-100 text-rose-700",
+  cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
+  elementaire: "bg-pink-100 text-pink-700",
+  approfondie: "bg-rose-100 text-rose-700",
 };
 
-// ==========================================================
-// Données fictives (mock data)
-// À remplacer par les données reçues du back via WebSocket
-// ==========================================================
-const mockQuestions = [
-  {
-    id: 1,
-    student: "Emma",
-    question: "Pouvez-vous réexpliquer la différence entre useState et useReducer ?",
-    category: "Technique",
-    answered: false,
-  },
-  {
-    id: 2,
-    student: "Lucas",
-    question: "L'exercice 3 est-il à rendre pour la prochaine séance ?",
-    category: "Exercice",
-    answered: true,
-  },
-  {
-    id: 3,
-    student: "Sarah",
-    question: "Est-ce que le cours de vendredi est maintenu ?",
-    category: "Général",
-    answered: false,
-  },
-];
+const categoryLabels = {
+  cours_precedent: "Cours précédent",
+  elementaire: "Élémentaire",
+  approfondie: "Approfondie",
+};
 
+function categoryStyle(categorie) {
+  return categoryStyles[categorie] ?? "bg-slate-100 text-slate-500";
+}
+
+function categoryLabel(categorie) {
+  return categorie ? categoryLabels[categorie] ?? categorie : "Non catégorisée";
+}
+
+// Intervalle de rafraichissement du flux de questions (pas de WebSocket
+// cote backend, on "simule" le temps reel par polling).
+const POLL_INTERVAL_MS = 4000;
 
 // ==========================================================
-// PHASE 1 — Écran de connexion élève (nom + choix de matière)
+// PHASE 1 — Écran de connexion élève (nom + choix du cours)
 // ==========================================================
-function EcranConnexion({ onJoin }) {
+function EcranConnexion({ coursList, loadingCours, coursError, onJoin, joining, joinError }) {
   const [name, setName] = useState("");
-  const [selectedClass, setSelectedClass] = useState(null);
+  const [selectedCoursId, setSelectedCoursId] = useState(null);
   const [error, setError] = useState("");
 
   const handleSubmit = (e) => {
@@ -69,19 +44,18 @@ function EcranConnexion({ onJoin }) {
       setError("Merci de saisir un nom ou pseudo.");
       return;
     }
-    if (!selectedClass) {
-      setError("Merci de choisir une matière.");
+    if (!selectedCoursId) {
+      setError("Merci de choisir un cours.");
       return;
     }
     setError("");
-    onJoin(trimmed, selectedClass);
+    onJoin(trimmed, selectedCoursId);
   };
 
   return (
     <div className="flex h-full items-center justify-center overflow-y-auto p-6 bg-gradient-to-br from-pink-50 via-rose-50 to-fuchsia-50">
       <div className="w-full max-w-2xl rounded-2xl border border-pink-100 bg-white p-8 shadow-xl shadow-pink-200/40">
 
-        {/* Icône décorative */}
         <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 shadow-lg shadow-pink-500/40">
           <svg className="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -93,22 +67,16 @@ function EcranConnexion({ onJoin }) {
           </svg>
         </div>
 
-        {/* Titre */}
         <h1 className="text-center text-2xl font-bold text-slate-800">
           Rejoindre la classe
         </h1>
         <p className="mt-2 text-center text-sm text-slate-500">
-          Saisis ton nom, puis choisis la matière que tu veux rejoindre.
+          Saisis ton nom, puis choisis le cours que tu veux rejoindre.
         </p>
 
-        {/* Formulaire */}
         <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-6">
-          {/* --- Nom --- */}
           <div>
-            <label
-              htmlFor="student-name"
-              className="mb-2 block text-sm font-medium text-slate-700"
-            >
+            <label htmlFor="student-name" className="mb-2 block text-sm font-medium text-slate-700">
               Nom / Pseudo
             </label>
             <input
@@ -122,47 +90,54 @@ function EcranConnexion({ onJoin }) {
             />
           </div>
 
-          {/* --- Grille des matières --- */}
           <div>
             <label className="mb-3 block text-sm font-medium text-slate-700">
-              Choisis ta matière
+              Choisis ton cours
             </label>
-            <div className="grid grid-cols-3 gap-3">
-              {CLASSES.map((cls) => {
-                const isSelected = selectedClass?.id === cls.id;
+
+            {loadingCours && (
+              <p className="text-sm text-slate-400">Chargement des cours…</p>
+            )}
+
+            {coursError && (
+              <p className="text-sm text-red-600">
+                Impossible de charger les cours ({coursError}). Vérifie que le backend tourne bien.
+              </p>
+            )}
+
+            {!loadingCours && !coursError && coursList.length === 0 && (
+              <p className="text-sm text-slate-400">Aucun cours disponible pour le moment.</p>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              {coursList.map((cours) => {
+                const isSelected = selectedCoursId === cours.id;
                 return (
                   <button
-                    key={cls.id}
+                    key={cours.id}
                     type="button"
-                    onClick={() => setSelectedClass(cls)}
-                    className={`group relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 p-4 transition-all ${
+                    onClick={() => setSelectedCoursId(cours.id)}
+                    className={`group relative flex flex-col items-start gap-1 rounded-xl border-2 p-4 text-left transition-all ${
                       isSelected
                         ? "border-pink-500 bg-gradient-to-br from-pink-50 to-rose-50 shadow-md shadow-pink-500/20"
                         : "border-pink-100 bg-white hover:border-pink-300 hover:bg-pink-50/40"
                     }`}
                   >
-                    {/* Symbole */}
                     <span
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl text-base font-bold transition ${
-                        isSelected
-                          ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-md shadow-pink-500/40"
-                          : "bg-pink-100 text-pink-700 group-hover:bg-pink-200"
-                      }`}
-                    >
-                      {cls.symbol}
-                    </span>
-                    {/* Nom de la matière */}
-                    <span
-                      className={`text-xs font-semibold ${
+                      className={`text-sm font-semibold ${
                         isSelected ? "text-pink-700" : "text-slate-700"
                       }`}
                     >
-                      {cls.label}
+                      {cours.titre}
                     </span>
+                    {cours.description && (
+                      <span className="text-xs text-slate-400 line-clamp-2">
+                        {cours.description}
+                      </span>
+                    )}
 
-                    {/* Checkmark si sélectionné */}
                     {isSelected && (
-                      <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-pink-600 text-white shadow-md">
+                      <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-pink-600 text-white shadow-md">
                         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={3}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
@@ -174,17 +149,16 @@ function EcranConnexion({ onJoin }) {
             </div>
           </div>
 
-          {/* --- Message d'erreur --- */}
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
+          {(error || joinError) && (
+            <p className="text-sm text-red-600">{error || joinError}</p>
           )}
 
-          {/* --- Submit --- */}
           <button
             type="submit"
-            className="rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 px-4 py-3 font-semibold text-white shadow-lg shadow-pink-500/30 transition hover:from-pink-600 hover:to-rose-700 active:scale-[0.98]"
+            disabled={joining}
+            className="rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 px-4 py-3 font-semibold text-white shadow-lg shadow-pink-500/30 transition hover:from-pink-600 hover:to-rose-700 active:scale-[0.98] disabled:opacity-60"
           >
-            Rejoindre la classe virtuelle
+            {joining ? "Connexion…" : "Rejoindre la classe virtuelle"}
           </button>
         </form>
       </div>
@@ -192,26 +166,28 @@ function EcranConnexion({ onJoin }) {
   );
 }
 
-
 // ==========================================================
-// PHASE 2 — Colonne gauche : formulaire de question (1/3)
+// PHASE 2 — Colonne gauche : formulaire de question
 // ==========================================================
-function FormulaireQuestion({ onSend, classe }) {
+function FormulaireQuestion({ onSend, cours, sending }) {
   const [text, setText] = useState("");
-  const [category, setCategory] = useState("Général");
   const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    onSend(trimmed, category);
-
-    setText("");
-    setCategory("Général");
-    setFeedback("Question envoyée ✓");
-    setTimeout(() => setFeedback(""), 2000);
+    setError("");
+    try {
+      await onSend(trimmed);
+      setText("");
+      setFeedback("Question envoyée ✓ (catégorisation par l'IA en cours…)");
+      setTimeout(() => setFeedback(""), 3000);
+    } catch (err) {
+      setError(err.message || "Erreur lors de l'envoi.");
+    }
   };
 
   return (
@@ -224,54 +200,30 @@ function FormulaireQuestion({ onSend, classe }) {
           <h2 className="text-xl font-bold text-slate-800">
             Poser une question au professeur
           </h2>
-          {classe && (
+          {cours && (
             <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-pink-100 px-3 py-1 text-xs font-semibold text-pink-700">
-              <span className="flex h-4 w-4 items-center justify-center rounded-md bg-pink-600 text-[9px] font-bold text-white">
-                {classe.symbol}
-              </span>
-              {classe.label}
+              {cours.titre}
             </span>
           )}
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          Votre question sera visible par toute la classe.
+          Votre question sera visible par toute la classe et catégorisée automatiquement.
         </p>
       </div>
 
-      {/* Catégorie */}
-      <label
-        htmlFor="q-category"
-        className="mb-2 text-sm font-medium text-slate-700"
-      >
-        Catégorie
-      </label>
-      <select
-        id="q-category"
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        className="mb-4 rounded-xl border border-pink-200 bg-pink-50/50 px-3 py-2 text-slate-800 outline-none transition focus:border-pink-500 focus:bg-white focus:ring-4 focus:ring-pink-500/10"
-      >
-        <option>Général</option>
-        <option>Technique</option>
-        <option>Exercice</option>
-      </select>
-
-      {/* Texte */}
-      <label
-        htmlFor="q-text"
-        className="mb-2 text-sm font-medium text-slate-700"
-      >
+      <label htmlFor="q-text" className="mb-2 text-sm font-medium text-slate-700">
         Votre question
       </label>
       <textarea
         id="q-text"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Ex: Pouvez-vous réexpliquer la partie sur les hooks React ?"
+        placeholder="Ex: Pouvez-vous réexpliquer la partie sur les suites géométriques ?"
         className="min-h-32 flex-1 resize-none rounded-xl border border-pink-200 bg-pink-50/50 px-4 py-3 text-slate-800 outline-none transition focus:border-pink-500 focus:bg-white focus:ring-4 focus:ring-pink-500/10"
       />
 
-      {/* Footer avec compteur / feedback + bouton envoyer */}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+
       <div className="mt-4 flex items-center justify-between gap-3">
         {feedback ? (
           <span className="text-sm font-medium text-emerald-600">{feedback}</span>
@@ -283,36 +235,31 @@ function FormulaireQuestion({ onSend, classe }) {
 
         <button
           type="submit"
-          disabled={!text.trim()}
+          disabled={!text.trim() || sending}
           className="rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-pink-500/30 transition hover:from-pink-600 hover:to-rose-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none"
         >
-          Envoyer la question
+          {sending ? "Envoi…" : "Envoyer la question"}
         </button>
       </div>
     </form>
   );
 }
 
-
 // ==========================================================
-// PHASE 2 — Colonne droite : flux temps réel (2/3)
+// PHASE 2 — Colonne droite : flux temps réel (polling)
 // ==========================================================
-function FluxQuestions({ questions, currentStudent, classe }) {
+function FluxQuestions({ questions, currentEleveId, elevesMap, cours }) {
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-pink-100 bg-white shadow-sm">
-
-      {/* Header */}
       <div className="border-b border-pink-100 p-6">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-xl font-bold text-slate-800">
               Questions de la classe
-              {classe && (
-                <span className="ml-2 text-pink-600">· {classe.label}</span>
-              )}
+              {cours && <span className="ml-2 text-pink-600">· {cours.titre}</span>}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Flux en direct — mis à jour en temps réel.
+              Flux mis à jour automatiquement toutes les {POLL_INTERVAL_MS / 1000}s.
             </p>
           </div>
 
@@ -323,7 +270,6 @@ function FluxQuestions({ questions, currentStudent, classe }) {
         </div>
       </div>
 
-      {/* Liste scrollable */}
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         {questions.length === 0 && (
           <div className="rounded-xl border-2 border-dashed border-pink-200 p-8 text-center text-sm text-slate-400">
@@ -332,9 +278,8 @@ function FluxQuestions({ questions, currentStudent, classe }) {
         )}
 
         {questions.map((q) => {
-          const isMine = q.student === currentStudent;
-          const catStyle =
-            categoryStyles[q.category] ?? "bg-slate-100 text-slate-700";
+          const isMine = q.eleve_id === currentEleveId;
+          const nom = q.eleve_id ? elevesMap[q.eleve_id] ?? `Élève #${q.eleve_id}` : "Anonyme";
 
           return (
             <div
@@ -345,7 +290,6 @@ function FluxQuestions({ questions, currentStudent, classe }) {
                   : "border-pink-100 bg-white hover:border-pink-200"
               }`}
             >
-              {/* Auteur */}
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${
@@ -354,47 +298,20 @@ function FluxQuestions({ questions, currentStudent, classe }) {
                       : "bg-pink-100 text-pink-700"
                   }`}
                 >
-                  {q.student.charAt(0).toUpperCase()}
+                  {nom.charAt(0).toUpperCase()}
                 </div>
                 <h3 className="font-semibold text-slate-800">
-                  {q.student}
-                  {isMine && (
-                    <span className="ml-2 text-xs font-normal text-pink-600">
-                      (moi)
-                    </span>
-                  )}
+                  {nom}
+                  {isMine && <span className="ml-2 text-xs font-normal text-pink-600">(moi)</span>}
                 </h3>
               </div>
 
-              {/* Question */}
-              <p className="mt-3 text-slate-700">{q.question}</p>
+              <p className="mt-3 text-slate-700">{q.texte}</p>
 
-              {/* Badges */}
               <div className="mt-4 flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${catStyle}`}
-                >
-                  {q.category}
+                <span className={`rounded-full px-3 py-1 text-xs font-medium ${categoryStyle(q.categorie)}`}>
+                  {categoryLabel(q.categorie)}
                 </span>
-
-                {q.answered && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={3}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Répondue
-                  </span>
-                )}
               </div>
             </div>
           );
@@ -404,73 +321,115 @@ function FluxQuestions({ questions, currentStudent, classe }) {
   );
 }
 
-
 // ==========================================================
 // COMPOSANT PRINCIPAL — EspaceEleve
 // ==========================================================
 export default function EspaceEleve() {
-  const [studentName, setStudentName] = useState(null);
-  const [studentClass, setStudentClass] = useState(null); // { id, label, symbol }
-  const [questions, setQuestions] = useState(mockQuestions);
+  const [coursList, setCoursList] = useState([]);
+  const [loadingCours, setLoadingCours] = useState(true);
+  const [coursError, setCoursError] = useState("");
 
-  // ==========================================================
-  // Écoute WebSocket (Socket.io) — À DÉCOMMENTER côté back prêt
-  // ==========================================================
+  const [studentName, setStudentName] = useState(null);
+  const [eleveId, setEleveId] = useState(null);
+  const [cours, setCours] = useState(null);
+  const [seanceId, setSeanceId] = useState(null);
+
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState("");
+
+  const [questions, setQuestions] = useState([]);
+  const [elevesMap, setElevesMap] = useState({});
+  const [sending, setSending] = useState(false);
+
+  const pollRef = useRef(null);
+
+  // ---- Chargement de la liste des cours au montage ----
   useEffect(() => {
-    // import { socket } from "./socket";   // ton instance io()
-    //
-    // // ⚠️ Le back peut filtrer par matière côté serveur en fonction du studentClass.id
-    // // ou renvoyer un flux distinct par room "classe:mathematiques".
-    //
-    // socket.on("nouvelleQuestion", (question) => {
-    //   setQuestions((prev) => [question, ...prev]);
-    // });
-    //
-    // socket.on("questionRepondue", (id) => {
-    //   setQuestions((prev) =>
-    //     prev.map((q) => (q.id === id ? { ...q, answered: true } : q))
-    //   );
-    // });
-    //
-    // return () => {
-    //   socket.off("nouvelleQuestion");
-    //   socket.off("questionRepondue");
-    // };
+    api
+      .getCours()
+      .then((data) => setCoursList(data))
+      .catch((err) => setCoursError(err.message))
+      .finally(() => setLoadingCours(false));
   }, []);
 
-  // ==========================================================
-  // Envoi d'une question via WebSocket + mise à jour optimiste
-  // ==========================================================
-  const handleSendQuestion = (text, category) => {
-    const newQuestion = {
-      id: Date.now(),
-      student: studentName,
-      classe: studentClass?.id, // envoyé au back pour le routage
-      question: text,
-      category,
-      answered: false,
+  // ---- Rejoindre un cours : creer l'eleve + trouver une seance ----
+  const handleJoin = useCallback(
+    async (nom, coursId) => {
+      setJoining(true);
+      setJoinError("");
+      try {
+        const [eleve, coursFull] = await Promise.all([
+          api.createEleve(nom),
+          api.getCoursFull(coursId),
+        ]);
+
+        if (!coursFull.seances || coursFull.seances.length === 0) {
+          setJoinError("Aucune séance disponible pour ce cours pour le moment.");
+          setJoining(false);
+          return;
+        }
+
+        // Seance la plus recente : en priorite celle "en_cours", sinon la derniere
+        const seances = coursFull.seances;
+        const enCours = seances.find((s) => s.statut === "en_cours");
+        const seance = enCours ?? seances[seances.length - 1];
+
+        setEleveId(eleve.id);
+        setStudentName(nom);
+        setCours(coursFull);
+        setSeanceId(seance.id);
+      } catch (err) {
+        setJoinError(err.message || "Impossible de rejoindre ce cours.");
+      } finally {
+        setJoining(false);
+      }
+    },
+    []
+  );
+
+  // ---- Polling du flux de questions + liste des eleves (pour les noms) ----
+  useEffect(() => {
+    if (!seanceId) return;
+
+    const refresh = () => {
+      api.getQuestions(seanceId).then(setQuestions).catch(() => {});
+      api
+        .getEleves()
+        .then((eleves) => {
+          const map = {};
+          eleves.forEach((e) => {
+            map[e.id] = e.nom;
+          });
+          setElevesMap(map);
+        })
+        .catch(() => {});
     };
 
-    // ---- Envoi WebSocket ----
-    // socket.emit("proposerQuestion", {
-    //   student: studentName,
-    //   classe: studentClass.id,
-    //   question: text,
-    //   category,
-    // });
+    refresh();
+    pollRef.current = setInterval(refresh, POLL_INTERVAL_MS);
+    return () => clearInterval(pollRef.current);
+  }, [seanceId]);
 
-    // ---- MAJ optimiste locale ----
-    setQuestions((prev) => [newQuestion, ...prev]);
+  const handleSendQuestion = async (texte) => {
+    setSending(true);
+    try {
+      const nouvelle = await api.createQuestion(seanceId, texte, eleveId);
+      setQuestions((prev) => [nouvelle, ...prev]);
+    } finally {
+      setSending(false);
+    }
   };
 
-  // ------- Phase 1 : élève non connecté -------
-  if (!studentName || !studentClass) {
+  // ------- Phase 1 : eleve non connecte -------
+  if (!studentName || !seanceId) {
     return (
       <EcranConnexion
-        onJoin={(nom, classe) => {
-          setStudentName(nom);
-          setStudentClass(classe);
-        }}
+        coursList={coursList}
+        loadingCours={loadingCours}
+        coursError={coursError}
+        onJoin={handleJoin}
+        joining={joining}
+        joinError={joinError}
       />
     );
   }
@@ -479,11 +438,12 @@ export default function EspaceEleve() {
   return (
     <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_2fr] gap-6 p-6">
-        <FormulaireQuestion onSend={handleSendQuestion} classe={studentClass} />
+        <FormulaireQuestion onSend={handleSendQuestion} cours={cours} sending={sending} />
         <FluxQuestions
           questions={questions}
-          currentStudent={studentName}
-          classe={studentClass}
+          currentEleveId={eleveId}
+          elevesMap={elevesMap}
+          cours={cours}
         />
       </div>
     </div>

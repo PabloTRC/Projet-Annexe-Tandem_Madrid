@@ -2,6 +2,7 @@ import os
 import uuid
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -17,6 +18,23 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 MAX_UPLOAD_SIZE = int(os.environ.get("MAX_UPLOAD_SIZE_BYTES", 10 * 1024 * 1024))
 
 app = FastAPI(title="Assistant de cours API")
+
+# CORS : autorise les frontends locaux (Vite) a appeler l'API depuis le
+# navigateur. FRONTEND_ORIGINS est une liste separee par des virgules dans
+# .env, ex: "http://localhost:5173,http://localhost:5174".
+_default_origins = "http://localhost:5173,http://127.0.0.1:5173"
+FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("FRONTEND_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=FRONTEND_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_or_404(db: Session, model, obj_id: int, label: str):
     obj = db.get(model, obj_id)
