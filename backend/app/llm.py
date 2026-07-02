@@ -68,7 +68,7 @@ def generer_synthese_questions(questions: list[dict]) -> str:
     lignes = "\n".join(
         f"- ({q['categorie'] or 'non categorisee'}) {q['texte']}" for q in questions
     )
-    prompt = f"""Voici les questions posees par des eleves durant une seance de cours :{lignes}
+    prompt = f"""Voici les questions posées par des élèves durant une séance de cours :{lignes}
 Rédige une courte synthèse (5 lignes maximum) à destination du professeur :
 quels types de questions ont été posés, quelles notions semblent poser
 problème, et une recommandation éventuelle."""
@@ -85,8 +85,8 @@ def reduire_questions(textes_questions: list[str]) -> str:
         return ""
     # dict.fromkeys() enlève les doublons stricts tout en gardant l'ordre
     liste_txt = "\n".join(f"- {q}" for q in dict.fromkeys(textes_questions))
-    prompt = f"""Tu es un assistant pédagogique. Voici une liste de questions posees par
-des eleves pendant un cours : {liste_txt}
+    prompt = f"""Tu es un assistant pédagogique. Voici une liste de questions posées par
+des élèves pendant un cours : {liste_txt}
 Ta mission : réduire le nombre de questions en repérant les similitudes entre
 celles qui attendent la même réponse. Renvoie uniquement la liste finale des
 questions reformulées de manière claire, une par ligne."""
