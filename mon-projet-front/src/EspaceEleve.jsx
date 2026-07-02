@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 
 // ==========================================================
-// Palette de couleurs par catégorie
+// Palette de couleurs par catégorie (thème rose harmonisé)
 // (couleurs distinctes pour repérer les questions d'un coup d'œil)
 // ==========================================================
 const categoryStyles = {
-  "Général":   "bg-blue-100 text-blue-700",
-  "Technique": "bg-purple-100 text-purple-700",
-  "Exercice":  "bg-orange-100 text-orange-700",
+  "Général":   "bg-pink-100 text-pink-700",
+  "Technique": "bg-fuchsia-100 text-fuchsia-700",
+  "Exercice":  "bg-rose-100 text-rose-700",
 };
 
 // ==========================================================
@@ -40,7 +40,7 @@ const mockQuestions = [
 
 
 // ==========================================================
-// PHASE 1 — Écran de connexion
+// PHASE 1 — Écran de connexion élève
 // ==========================================================
 function EcranConnexion({ onJoin }) {
   const [name, setName] = useState("");
@@ -58,11 +58,11 @@ function EcranConnexion({ onJoin }) {
   };
 
   return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
+    <div className="flex h-full items-center justify-center p-6 bg-gradient-to-br from-pink-50 via-rose-50 to-fuchsia-50">
+      <div className="w-full max-w-md rounded-2xl border border-pink-100 bg-white p-8 shadow-xl shadow-pink-200/40">
 
         {/* Icône décorative */}
-        <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 shadow-lg shadow-indigo-600/30">
+        <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 shadow-lg shadow-pink-500/40">
           <svg className="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -97,7 +97,7 @@ function EcranConnexion({ onJoin }) {
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Lina, EmmaCoding…"
               autoFocus
-              className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 outline-none transition focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-600/10"
+              className="w-full rounded-xl border border-pink-200 bg-pink-50/50 px-4 py-3 text-slate-800 outline-none transition focus:border-pink-500 focus:bg-white focus:ring-4 focus:ring-pink-500/10"
             />
             {error && (
               <p className="mt-2 text-sm text-red-600">{error}</p>
@@ -106,7 +106,7 @@ function EcranConnexion({ onJoin }) {
 
           <button
             type="submit"
-            className="mt-2 rounded-xl bg-indigo-600 px-4 py-3 font-semibold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-700 active:scale-[0.98]"
+            className="mt-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 px-4 py-3 font-semibold text-white shadow-lg shadow-pink-500/30 transition hover:from-pink-600 hover:to-rose-700 active:scale-[0.98]"
           >
             Rejoindre la classe virtuelle
           </button>
@@ -132,7 +132,6 @@ function FormulaireQuestion({ onSend }) {
 
     onSend(trimmed, category);
 
-    // Reset + petit feedback visuel
     setText("");
     setCategory("Général");
     setFeedback("Question envoyée ✓");
@@ -142,7 +141,7 @@ function FormulaireQuestion({ onSend }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="flex h-full min-h-0 flex-col rounded-2xl border border-pink-100 bg-white p-6 shadow-sm"
     >
       <div className="mb-5">
         <h2 className="text-xl font-bold text-slate-800">
@@ -164,7 +163,7 @@ function FormulaireQuestion({ onSend }) {
         id="q-category"
         value={category}
         onChange={(e) => setCategory(e.target.value)}
-        className="mb-4 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-800 outline-none transition focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-600/10"
+        className="mb-4 rounded-xl border border-pink-200 bg-pink-50/50 px-3 py-2 text-slate-800 outline-none transition focus:border-pink-500 focus:bg-white focus:ring-4 focus:ring-pink-500/10"
       >
         <option>Général</option>
         <option>Technique</option>
@@ -183,13 +182,13 @@ function FormulaireQuestion({ onSend }) {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Ex: Pouvez-vous réexpliquer la partie sur les hooks React ?"
-        className="min-h-32 flex-1 resize-none rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-800 outline-none transition focus:border-indigo-600 focus:bg-white focus:ring-4 focus:ring-indigo-600/10"
+        className="min-h-32 flex-1 resize-none rounded-xl border border-pink-200 bg-pink-50/50 px-4 py-3 text-slate-800 outline-none transition focus:border-pink-500 focus:bg-white focus:ring-4 focus:ring-pink-500/10"
       />
 
       {/* Footer avec compteur / feedback + bouton envoyer */}
       <div className="mt-4 flex items-center justify-between gap-3">
         {feedback ? (
-          <span className="text-sm font-medium text-green-600">{feedback}</span>
+          <span className="text-sm font-medium text-emerald-600">{feedback}</span>
         ) : (
           <span className="text-xs text-slate-400">
             {text.length} caractère{text.length > 1 ? "s" : ""}
@@ -199,7 +198,7 @@ function FormulaireQuestion({ onSend }) {
         <button
           type="submit"
           disabled={!text.trim()}
-          className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/30 transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+          className="rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-pink-500/30 transition hover:from-pink-600 hover:to-rose-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-300 disabled:shadow-none"
         >
           Envoyer la question
         </button>
@@ -214,10 +213,10 @@ function FormulaireQuestion({ onSend }) {
 // ==========================================================
 function FluxQuestions({ questions, currentStudent }) {
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-pink-100 bg-white shadow-sm">
 
       {/* Header */}
-      <div className="border-b border-slate-200 p-6">
+      <div className="border-b border-pink-100 p-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-bold text-slate-800">
@@ -228,8 +227,8 @@ function FluxQuestions({ questions, currentStudent }) {
             </p>
           </div>
 
-          <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+          <span className="inline-flex items-center gap-2 rounded-full bg-pink-50 border border-pink-100 px-3 py-1 text-sm font-medium text-pink-700">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
             {questions.length} question{questions.length > 1 ? "s" : ""}
           </span>
         </div>
@@ -238,7 +237,7 @@ function FluxQuestions({ questions, currentStudent }) {
       {/* Liste scrollable */}
       <div className="flex-1 space-y-4 overflow-y-auto p-6">
         {questions.length === 0 && (
-          <div className="rounded-xl border-2 border-dashed border-slate-300 p-8 text-center text-sm text-slate-400">
+          <div className="rounded-xl border-2 border-dashed border-pink-200 p-8 text-center text-sm text-slate-400">
             Aucune question pour le moment. Sois le premier à poser une question !
           </div>
         )}
@@ -253,8 +252,8 @@ function FluxQuestions({ questions, currentStudent }) {
               key={q.id}
               className={`rounded-xl border p-5 shadow-sm transition hover:shadow-md ${
                 isMine
-                  ? "border-indigo-200 bg-indigo-50/40"
-                  : "border-slate-200 bg-white"
+                  ? "border-pink-300 bg-gradient-to-br from-pink-50 to-rose-50/60"
+                  : "border-pink-100 bg-white hover:border-pink-200"
               }`}
             >
               {/* Auteur */}
@@ -262,8 +261,8 @@ function FluxQuestions({ questions, currentStudent }) {
                 <div
                   className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${
                     isMine
-                      ? "bg-indigo-600 text-white"
-                      : "bg-slate-100 text-slate-700"
+                      ? "bg-gradient-to-br from-pink-500 to-rose-600 text-white shadow-md shadow-pink-500/30"
+                      : "bg-pink-100 text-pink-700"
                   }`}
                 >
                   {q.student.charAt(0).toUpperCase()}
@@ -271,7 +270,7 @@ function FluxQuestions({ questions, currentStudent }) {
                 <h3 className="font-semibold text-slate-800">
                   {q.student}
                   {isMine && (
-                    <span className="ml-2 text-xs font-normal text-indigo-600">
+                    <span className="ml-2 text-xs font-normal text-pink-600">
                       (moi)
                     </span>
                   )}
@@ -290,7 +289,7 @@ function FluxQuestions({ questions, currentStudent }) {
                 </span>
 
                 {q.answered && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
                     <svg
                       className="h-3 w-3"
                       fill="none"
@@ -354,7 +353,7 @@ export default function EspaceEleve() {
   // ==========================================================
   const handleSendQuestion = (text, category) => {
     const newQuestion = {
-      id: Date.now(), // ID temporaire, le back renverra le vrai ID
+      id: Date.now(),
       student: studentName,
       question: text,
       category,
@@ -379,7 +378,7 @@ export default function EspaceEleve() {
 
   // ------- Phase 2 : interface de cours -------
   return (
-    <div className="h-full overflow-hidden">
+    <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_2fr] gap-6 p-6">
         <FormulaireQuestion onSend={handleSendQuestion} />
         <FluxQuestions questions={questions} currentStudent={studentName} />
