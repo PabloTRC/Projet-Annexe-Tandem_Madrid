@@ -484,12 +484,3 @@ def reduire_questions_seance(seance_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail=f"Ollama indisponible : {exc}")
 
     return {"questions_reduites": questions_reduites}
-
-
-
-
-
-
-
-
-
