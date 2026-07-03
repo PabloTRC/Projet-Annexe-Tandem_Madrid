@@ -434,6 +434,10 @@ async def upload_contenu(
     db.add(contenu)
     db.commit()
     db.refresh(contenu)
+
+    contenu_data = schemas.ContenuRead.model_validate(contenu).model_dump()
+    await manager.broadcast(seance_id, {"type": "contenu_created", "data": contenu_data})
+
     return contenu
 
 
@@ -557,7 +561,7 @@ async def update_question(question_id: int, payload: schemas.QuestionUpdate, db:
     response_model=schemas.SyntheseQuestionsRead,
     status_code=201,
 )
-def create_synthese_questions(
+async def create_synthese_questions(
     seance_id: int, payload: schemas.SyntheseQuestionsCreate, db: Session = Depends(get_db)
 ):
     get_or_404(db, models.Seance, seance_id, "Seance")
@@ -565,6 +569,10 @@ def create_synthese_questions(
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    synthese_data = schemas.SyntheseQuestionsRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_questions", "data": synthese_data})
+
     return synthese
 
 
@@ -587,11 +595,12 @@ def list_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     response_model=schemas.SyntheseQuestionsRead,
     status_code=201,
 )
-def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
+async def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     """
     Declenche Ollama pour generer la synthese des questions de la seance
     (a partir de toutes les questions deja posees, avec leur categorie) et
-    l'enregistre. Utilise pour le bouton "generer la synthese" cote prof.
+    l'enregistre. Utilise pour le bouton "generer la synthese" cote prof
+    (et pour la generation automatique toutes les 20 minutes).
     """
     get_or_404(db, models.Seance, seance_id, "Seance")
     questions = (
@@ -611,6 +620,14 @@ def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    # Diffuse la synthese a TOUS les clients connectes (pas seulement celui
+    # qui a declenche la generation) : si le prof a plusieurs onglets
+    # ouverts, ou si la generation vient du timer automatique de 20 min,
+    # tout le monde recoit le resultat en direct.
+    synthese_data = schemas.SyntheseQuestionsRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_questions", "data": synthese_data})
+
     return synthese
 
 
@@ -619,7 +636,7 @@ def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     response_model=schemas.SyntheseCoursRead,
     status_code=201,
 )
-def create_synthese_cours(
+async def create_synthese_cours(
     seance_id: int, payload: schemas.SyntheseCoursCreate, db: Session = Depends(get_db)
 ):
     get_or_404(db, models.Seance, seance_id, "Seance")
@@ -627,6 +644,10 @@ def create_synthese_cours(
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    synthese_data = schemas.SyntheseCoursRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_cours", "data": synthese_data})
+
     return synthese
 
 
@@ -635,7 +656,7 @@ def create_synthese_cours(
     response_model=schemas.SyntheseCoursRead,
     status_code=201,
 )
-def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
+async def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
     """
     Declenche Ollama pour generer la synthese du contenu de la seance
     (a partir de tous les contenus deja publies) et l'enregistre.
@@ -658,6 +679,10 @@ def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    synthese_data = schemas.SyntheseCoursRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_cours", "data": synthese_data})
+
     return synthese
 
 
