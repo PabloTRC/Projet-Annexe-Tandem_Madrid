@@ -27,9 +27,100 @@ function categoryLabel(categorie) {
 const POLL_INTERVAL_MS = 4000;
 
 // ==========================================================
+// Formulaire d'ajout d'une classe (cours)
+// ==========================================================
+function FormulaireAjoutClasse({ onCreate, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [titre, setTitre] = useState("");
+  const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = titre.trim();
+    if (!trimmed) {
+      setError("Le nom de la classe est obligatoire.");
+      return;
+    }
+    setCreating(true);
+    setError("");
+    try {
+      await onCreate(trimmed, description.trim());
+      setTitre("");
+      setDescription("");
+      setOpen(false);
+    } catch (err) {
+      setError(err.message || "Impossible de créer cette classe.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="mt-6 w-full rounded-xl border-2 border-dashed border-pink-200 py-3 text-sm font-semibold text-pink-600 transition hover:border-pink-400 hover:bg-pink-50/50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        + Ajouter une classe
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mt-6 rounded-xl border-2 border-pink-200 bg-pink-50/30 p-4"
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-700">Nouvelle classe</h3>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs text-slate-400 hover:text-slate-600"
+        >
+          Annuler
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-3">
+        <input
+          type="text"
+          value={titre}
+          onChange={(e) => setTitre(e.target.value)}
+          placeholder="Nom de la classe (ex : 3ème A - Mathématiques)"
+          autoFocus
+          className="rounded-lg border border-pink-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10"
+        />
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Description (optionnel)"
+          rows={2}
+          className="resize-none rounded-lg border border-pink-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10"
+        />
+      </div>
+
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+
+      <button
+        type="submit"
+        disabled={creating}
+        className="mt-3 w-full rounded-lg bg-gradient-to-r from-pink-500 to-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-pink-500/30 transition hover:from-pink-600 hover:to-rose-700 disabled:opacity-60"
+      >
+        {creating ? "Création…" : "Créer la classe"}
+      </button>
+    </form>
+  );
+}
+
+// ==========================================================
 // Écran de sélection du cours / de la séance à suivre
 // ==========================================================
-function EcranSelectionCours({ coursList, loading, error, onSelect }) {
+function EcranSelectionCours({ coursList, loading, error, onSelect, onCreate, creatingDisabled }) {
   return (
     <div className="flex h-full items-center justify-center overflow-y-auto p-6 bg-gradient-to-br from-pink-50 via-rose-50 to-fuchsia-50">
       <div className="w-full max-w-2xl rounded-2xl border border-pink-100 bg-white p-8 shadow-xl shadow-pink-200/40">
@@ -49,7 +140,7 @@ function EcranSelectionCours({ coursList, loading, error, onSelect }) {
 
         {!loading && !error && coursList.length === 0 && (
           <p className="mt-6 text-center text-sm text-slate-400">
-            Aucun cours en base. Crée-en un via l'API (POST /cours) ou le seed.
+            Aucune classe pour l'instant. Ajoutes-en une ci-dessous.
           </p>
         )}
 
@@ -67,6 +158,13 @@ function EcranSelectionCours({ coursList, loading, error, onSelect }) {
             </button>
           ))}
         </div>
+
+        <FormulaireAjoutClasse onCreate={onCreate} disabled={creatingDisabled} />
+        {creatingDisabled && (
+          <p className="mt-2 text-center text-xs text-slate-400">
+            Aucun compte professeur trouvé en base — impossible de créer une classe pour l'instant.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -83,6 +181,10 @@ export default function EspaceProfesseur() {
   const [cours, setCours] = useState(null);
   const [seanceId, setSeanceId] = useState(null);
   const [selectError, setSelectError] = useState("");
+
+  // Compte professeur utilise pour creer les classes. Pas d'authentification
+  // pour l'instant : on prend le premier professeur trouve en base.
+  const [professeurId, setProfesseurId] = useState(null);
 
   const [questions, setQuestions] = useState([]);
   const [elevesMap, setElevesMap] = useState({});
@@ -113,7 +215,26 @@ export default function EspaceProfesseur() {
       .then(setCoursList)
       .catch((err) => setCoursError(err.message))
       .finally(() => setLoadingCours(false));
+
+    api
+      .getProfesseurs()
+      .then((list) => {
+        if (list.length > 0) setProfesseurId(list[0].id);
+      })
+      .catch(() => {});
   }, []);
+
+  const handleCreateCours = useCallback(
+    async (titre, description) => {
+      if (!professeurId) {
+        throw new Error("Aucun compte professeur trouvé en base.");
+      }
+      const nouveauCours = await api.createCours(professeurId, titre, description);
+      setCoursList((prev) => [...prev, nouveauCours]);
+      return nouveauCours;
+    },
+    [professeurId]
+  );
 
   const handleSelectCours = useCallback(async (coursId) => {
     setSelectError("");
@@ -269,6 +390,8 @@ export default function EspaceProfesseur() {
         loading={loadingCours}
         error={coursError || selectError}
         onSelect={handleSelectCours}
+        onCreate={handleCreateCours}
+        creatingDisabled={!professeurId}
       />
     );
   }
