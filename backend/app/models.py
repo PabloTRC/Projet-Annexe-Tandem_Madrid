@@ -31,6 +31,8 @@ class Eleve(Base):
     categorie = Column(String(50), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
+    inscriptions = relationship("Inscription", back_populates="eleve", cascade="all, delete-orphan")
+
 
 class Cours(Base):
     __tablename__ = "cours"
@@ -43,6 +45,22 @@ class Cours(Base):
 
     professeur = relationship("Professeur", back_populates="cours")
     seances = relationship("Seance", back_populates="cours", cascade="all, delete-orphan")
+    inscriptions = relationship("Inscription", back_populates="cours", cascade="all, delete-orphan")
+
+
+class Inscription(Base):
+    """Lien eleve <-> cours : inscription/desinscription d'un eleve dans une
+    classe, gerée par le professeur."""
+
+    __tablename__ = "inscription"
+
+    id = Column(Integer, primary_key=True)
+    eleve_id = Column(Integer, ForeignKey("eleve.id", ondelete="CASCADE"), nullable=False)
+    cours_id = Column(Integer, ForeignKey("cours.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    eleve = relationship("Eleve", back_populates="inscriptions")
+    cours = relationship("Cours", back_populates="inscriptions")
 
 
 class Seance(Base):
@@ -63,6 +81,24 @@ class Seance(Base):
     syntheses_cours = relationship(
         "SyntheseCours", back_populates="seance", cascade="all, delete-orphan"
     )
+    presences = relationship("Presence", back_populates="seance", cascade="all, delete-orphan")
+
+
+class Presence(Base):
+    """Suivi de presence "en direct" d'un eleve sur une seance : pas de
+    websocket, le frontend eleve envoie un heartbeat periodique (toutes les
+    quelques secondes) qui met a jour `derniere_activite`. Le professeur
+    considere un eleve "en ligne" si son heartbeat est recent."""
+
+    __tablename__ = "presence"
+
+    id = Column(Integer, primary_key=True)
+    eleve_id = Column(Integer, ForeignKey("eleve.id", ondelete="CASCADE"), nullable=False)
+    seance_id = Column(Integer, ForeignKey("seance.id", ondelete="CASCADE"), nullable=False)
+    derniere_activite = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    eleve = relationship("Eleve")
+    seance = relationship("Seance", back_populates="presences")
 
 
 class Contenu(Base):
