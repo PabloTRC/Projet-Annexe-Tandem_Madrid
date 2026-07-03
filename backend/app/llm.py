@@ -15,6 +15,12 @@ None plutot que d'empêcher la creation de la question).
 import os
 import ollama
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1")
 CATEGORIES_VALIDES = {"cours_precedent", "elementaire", "approfondie"}
 
