@@ -2,10 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import api from "./api";
 import { connectSeanceSocket } from "./ws";
 
-// ==========================================================
-// Style par categorie de question (categories reelles renvoyees
-// par le LLM cote backend : cours_precedent / elementaire / approfondie)
-// ==========================================================
+//catégorie de q°
 const categoryStyles = {
   cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
   elementaire: "bg-pink-100 text-pink-700",
@@ -26,9 +23,7 @@ function categoryLabel(categorie) {
   return categorie ? categoryLabels[categorie] ?? categorie : "Non catégorisée";
 }
 
-// ==========================================================
-// PHASE 1 — Écran de connexion élève (nom + choix du cours)
-// ==========================================================
+//connexion élève
 function EcranConnexion({ coursList, loadingCours, coursError, onJoin, joining, joinError }) {
   const [name, setName] = useState("");
   const [selectedCoursId, setSelectedCoursId] = useState(null);
@@ -163,9 +158,7 @@ function EcranConnexion({ coursList, loadingCours, coursError, onJoin, joining, 
   );
 }
 
-// ==========================================================
-// PHASE 2 — Documents partagés par le professeur (téléchargement)
-// ==========================================================
+//document/synthèse partagée par le prof
 function DocumentsEleve({ documents, seanceId }) {
   if (!documents || documents.length === 0) return null;
 
@@ -199,9 +192,7 @@ function DocumentsEleve({ documents, seanceId }) {
   );
 }
 
-// ==========================================================
-// PHASE 2 — Colonne gauche : formulaire de question
-// ==========================================================
+//formulaire de questions
 function FormulaireQuestion({ onSend, cours, sending }) {
   const [text, setText] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -278,9 +269,7 @@ function FormulaireQuestion({ onSend, cours, sending }) {
   );
 }
 
-// ==========================================================
-// PHASE 2 — Colonne droite : flux temps réel (WebSocket)
-// ==========================================================
+//refraichissement des questions
 function FluxQuestions({ questions, currentEleveId, elevesMap, cours, wsConnected }) {
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-pink-100 bg-white shadow-sm">
@@ -360,9 +349,7 @@ function FluxQuestions({ questions, currentEleveId, elevesMap, cours, wsConnecte
   );
 }
 
-// ==========================================================
-// COMPOSANT PRINCIPAL — EspaceEleve
-// ==========================================================
+//Espace élève
 export default function EspaceEleve() {
   const [coursList, setCoursList] = useState([]);
   const [loadingCours, setLoadingCours] = useState(true);
@@ -387,7 +374,7 @@ export default function EspaceEleve() {
     elevesMapRef.current = elevesMap;
   }, [elevesMap]);
 
-  // ---- Chargement de la liste des cours au montage ----
+  //Chargement de la liste des cours au montage
   useEffect(() => {
     api
       .getCours()
@@ -396,7 +383,7 @@ export default function EspaceEleve() {
       .finally(() => setLoadingCours(false));
   }, []);
 
-  // ---- Rejoindre un cours : creer l'eleve + trouver une seance ----
+  //Rejoindre un cours : créer l'élève + trouver une séance
   const handleJoin = useCallback(
     async (nom, coursId) => {
       setJoining(true);
@@ -413,7 +400,7 @@ export default function EspaceEleve() {
           return;
         }
 
-        // Seance la plus recente : en priorite celle "en_cours", sinon la derniere
+        //Séance la plus récente : en priorité celle "en_cours", sinon la dernière
         const seances = coursFull.seances;
         const enCours = seances.find((s) => s.statut === "en_cours");
         const seance = enCours ?? seances[seances.length - 1];
@@ -431,12 +418,7 @@ export default function EspaceEleve() {
     []
   );
 
-  // ---- Chargement initial (historique) + connexion WebSocket temps réel ----
-  // Le WS ne pousse que les NOUVEAUX évènements ; l'état existant (questions
-  // déjà posées, documents déjà partagés, liste des élèves) est chargé une
-  // fois via l'API classique au moment de rejoindre la séance. Se connecter
-  // au WS avec eleve_id signale aussi la présence de cet élève au
-  // professeur (plus besoin de heartbeat séparé).
+  
   useEffect(() => {
     if (!seanceId) return;
     let cancelled = false;
@@ -496,7 +478,7 @@ export default function EspaceEleve() {
     }
   };
 
-  // ------- Phase 1 : eleve non connecte -------
+  //Non connexion d'un élève
   if (!studentName || !seanceId) {
     return (
       <EcranConnexion
@@ -510,7 +492,7 @@ export default function EspaceEleve() {
     );
   }
 
-  // ------- Phase 2 : interface de cours -------
+  //Interface de cours
   return (
     <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_2fr] gap-6 p-6">

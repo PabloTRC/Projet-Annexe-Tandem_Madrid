@@ -10,9 +10,7 @@ function canDownload(contenu) {
   return Boolean(contenu.donnees?.file_path);
 }
 
-// ==========================================================
-// 📎 Documents de la séance — dépôt (prof) et liste (prof + élève)
-// ==========================================================
+// Document séance, liste élève
 export default function DocumentsCours({ seanceId, cours, onBack }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,9 +20,7 @@ export default function DocumentsCours({ seanceId, cours, onBack }) {
   const [wsConnected, setWsConnected] = useState(false);
   const fileInputRef = useRef(null);
 
-  // ---- Chargement initial + abonnement WS : un document deposé par un
-  // autre onglet/appareil (prof ou élève, ex. via une autre séance ouverte
-  // simultanément) apparaît ici sans avoir à recharger la page.
+  //sans recharger la page, apparition du document ou de la question
   useEffect(() => {
     if (!seanceId) return;
     let cancelled = false;
@@ -66,8 +62,6 @@ export default function DocumentsCours({ seanceId, cours, onBack }) {
       for (const file of files) {
         await api.uploadContenu(seanceId, file, "fichier");
       }
-      // Pas besoin de refetch : le broadcast WS "contenu_created" met déjà
-      // la liste à jour (y compris pour ce client, qui reçoit aussi l'événement).
     } catch (err) {
       setError(err.message || "Erreur lors de l'envoi du fichier.");
     } finally {

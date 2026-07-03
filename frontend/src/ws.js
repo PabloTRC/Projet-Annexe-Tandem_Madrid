@@ -1,8 +1,4 @@
-// Client WebSocket minimal, avec reconnexion automatique (backoff
-// exponentiel), pour se brancher sur /ws/seances/{id} et remplacer le
-// polling REST. Un seul salon par séance : tous les événements (question,
-// contenu, synthèse, présence) arrivent sur la même connexion, distingués
-// par le champ "type" du message JSON reçu.
+// Websocket : connexion, affichage des cours, etc ...
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const WS_URL = import.meta.env.VITE_WS_URL || API_URL.replace(/^http/, "ws");

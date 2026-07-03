@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "./api";
 
-// ==========================================================
-// 👥 Inscrire / désinscrire un élève dans la classe suivie
-// ==========================================================
+//Inscription/Désinscription des élèves essentiellement
 export default function GestionEleves({ cours, onBack }) {
   const [tousLesEleves, setTousLesEleves] = useState([]);
   const [inscritsIds, setInscritsIds] = useState(new Set());

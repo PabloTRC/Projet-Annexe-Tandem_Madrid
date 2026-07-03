@@ -26,9 +26,7 @@ function categoryLabel(categorie) {
   return categorie ? categoryLabels[categorie] ?? categorie : "Non catégorisée";
 }
 
-// ==========================================================
-// Formulaire d'ajout d'une classe (cours)
-// ==========================================================
+//Ajout d'un cours
 function FormulaireAjoutClasse({ onCreate, disabled }) {
   const [open, setOpen] = useState(false);
   const [titre, setTitre] = useState("");
@@ -117,9 +115,7 @@ function FormulaireAjoutClasse({ onCreate, disabled }) {
   );
 }
 
-// ==========================================================
-// Écran de sélection du cours / de la séance à suivre
-// ==========================================================
+//choix du cours/sélection
 function EcranSelectionCours({ coursList, loading, error, onSelect, onCreate, creatingDisabled }) {
   return (
     <div className="flex h-full items-center justify-center overflow-y-auto p-6 bg-gradient-to-br from-pink-50 via-rose-50 to-fuchsia-50">
@@ -170,9 +166,7 @@ function EcranSelectionCours({ coursList, loading, error, onSelect, onCreate, cr
   );
 }
 
-// ==========================================================
-// 👩‍🏫 ESPACE PROFESSEUR
-// ==========================================================
+//Espace du prof
 export default function EspaceProfesseur() {
   const [coursList, setCoursList] = useState([]);
   const [loadingCours, setLoadingCours] = useState(true);
@@ -182,8 +176,7 @@ export default function EspaceProfesseur() {
   const [seanceId, setSeanceId] = useState(null);
   const [selectError, setSelectError] = useState("");
 
-  // Compte professeur utilise pour creer les classes. Pas d'authentification
-  // pour l'instant : on prend le premier professeur trouve en base.
+  //Compte du prof, pas besoin d'authentification (1 seul prof pour l'instant)
   const [professeurId, setProfesseurId] = useState(null);
 
   const [questions, setQuestions] = useState([]);
@@ -198,15 +191,13 @@ export default function EspaceProfesseur() {
     elevesMapRef.current = elevesMap;
   }, [elevesMap]);
 
-  // Synthese automatique des questions, toutes les 20 minutes tant qu'une
-  // seance est suivie (independant de l'onglet affiche).
+  //On envoie la synthèse toutes les 20 min
   const [autoSyntheses, setAutoSyntheses] = useState([]);
   const [autoGenerating, setAutoGenerating] = useState(false);
   const [autoError, setAutoError] = useState("");
   const [nextAutoAt, setNextAutoAt] = useState(null);
 
-  // Etats purement locaux (pas de colonnes correspondantes cote backend) :
-  // lu / repondue / epinglee, garde en memoire par id de question.
+  //classification en fonction de la question
   const [localState, setLocalState] = useState({}); // { [questionId]: { read, answered, pinned } }
 
   const [syntheseQuestions, setSyntheseQuestions] = useState(null);
@@ -259,11 +250,7 @@ export default function EspaceProfesseur() {
     }
   }, []);
 
-  // ---- Chargement initial (historique) + connexion WebSocket temps réel ----
-  // Une seule connexion WS remplace tout le polling : questions, présence
-  // (élèves en ligne) et synthèses arrivent au fil de l'eau sur le même
-  // canal. Pas d'eleveId ici : cette connexion est identifiée comme
-  // "professeur" côté serveur (elle ne compte pas dans la présence élèves).
+  // websocket des élèves
   useEffect(() => {
     if (!seanceId) return;
     let cancelled = false;
@@ -343,19 +330,14 @@ export default function EspaceProfesseur() {
     };
   }, [seanceId]);
 
-  // ---- Demande la permission de notification navigateur (une seule fois) ----
+  //Permission 1 seule fois (plus pratique)
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // ---- Synthese automatique des questions, toutes les 20 minutes ----
-  // NB: la mise a jour de autoSyntheses/syntheseQuestions + la notification
-  // sont gerees par le handler WS "synthese_questions" ci-dessus (le client
-  // qui declenche la generation recoit aussi le broadcast) : ici on se
-  // contente de declencher la generation cote serveur et de gerer le
-  // chargement/l'erreur.
+  //synthèse des questions, donc on fait ça tt les 20 min si elle n'est pas pluggée par le prof
   const genererSyntheseAuto = useCallback(async () => {
     if (!seanceId) return;
     setAutoGenerating(true);
@@ -414,11 +396,10 @@ export default function EspaceProfesseur() {
       default:
         return questions;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questions, filter, localState]);
 
   const pinnedQuestions = questions.filter((q) => getLocal(q.id).pinned);
-
+  //Synthèse
   const handleGenererSyntheseQuestions = async () => {
     setGenererLoading("questions");
     setGenererError("");
