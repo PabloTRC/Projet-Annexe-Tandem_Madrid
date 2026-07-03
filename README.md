@@ -38,6 +38,83 @@ Pour faire fonctionner le code, il faut avoir :
 
 ## Installation
 
+### 1. Cloner le dépôt
+
+```bash
+git clone <url-du-repo>
+cd Projet-Annexe-Tandem_Madrid
+```
+
+### 2. Configurer les variables d'environnement
+
+Copie le fichier d'exemple et adapte-le :
+
+```bash
+cp .env.example .env
+```
+
+Remplis au minimum :
+
+```env
+POSTGRES_USER=tandem
+POSTGRES_PASSWORD=un-mot-de-passe-solide
+POSTGRES_DB=tandem_db
+DATABASE_URL=postgresql://tandem:un-mot-de-passe-solide@localhost:5433/tandem_db
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3
+APP_SECRET_KEY=change-me
+```
+
+### 3. Base de données (Docker)
+
+```bash
+docker compose up -d postgres
+```
+
+### 4. Backend (Python / FastAPI)
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate      # Linux/Mac
+# venv\Scripts\activate       # Windows
+
+pip install -r requirements.txt
+```
+
+> Les migrations Alembic vivent dans un venv separe (`backend/db/venv`, avec
+> son propre `requirements.txt`). Voir `docs/LANCEMENT.md` pour le detail des
+> deux venvs et le script `scripts/run_demo.sh` qui automatise tout.
+
+### 5. Frontend (React / Vite)
+
+```bash
+cd frontend
+npm install
+```
+
+## Lancer l'application
+
+Ouvre **3 terminaux** :
+
+**Terminal 1 — Base de données**
+```bash
+docker compose up postgres
+```
+
+**Terminal 2 — Backend**
+```bash
+source .venv/bin/activate
+uvicorn app.main:app --reload
+```
+API disponible sur → http://localhost:8000
+
+**Terminal 3 — Frontend**
+```bash
+cd frontend
+npm run dev
+```
+Interface disponible sur → http://localhost:5173
 
 ## Guide d'utilisation
 
@@ -75,23 +152,22 @@ const CODE_ACCES_PROF = "TON_NOUVEAU_CODE";
 ```
 Projet-Annexe-Tandem_Madrid/
 ├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── models/          # modèles SQLAlchemy
-│   │   ├── routers/         # endpoints REST par domaine
-│   │   ├── services/        # logique métier
-│   │   └── llm/             # client Ollama, prompts
+│   ├── app/                 # API FastAPI (main.py, models.py, schemas.py, ws_manager.py, llm.py)
+│   ├── db/                  # migrations Alembic (versions/) + script de seed (reset_demo.py)
+│   ├── uploads/              # fichiers deposes par le professeur
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx          # racine + sidebar + espace prof
-│   │   ├── EspaceEleve.jsx  # écran de connexion élève + interface de cours
+│   │   ├── App.jsx           # racine + routage espace eleve / professeur
+│   │   ├── EspaceEleve.jsx   # ecran de connexion eleve + interface de cours
+│   │   ├── EspaceProfesseur.jsx
 │   │   └── main.jsx
 │   ├── package.json
 │   └── vite.config.js
+├── docs/                    # PROJECT.md, LANCEMENT.md, mvp_backend.md
+├── scripts/
+│   └── run_demo.sh          # reset DB + seed + lance backend/frontend en un coup
 ├── docker-compose.yml
-├── .env.example
-├── PROJECT.md               # démarche et choix techniques
 └── README.md
 ```
 

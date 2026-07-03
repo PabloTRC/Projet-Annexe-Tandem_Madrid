@@ -36,7 +36,7 @@ class EleveRead(BaseModel):
     created_at: datetime
 
 
-# ---------- Inscription (eleve <-> cours) ----------
+# Inscription (eleve <-> cours)
 
 class InscriptionCreate(BaseModel):
     eleve_id: int
@@ -51,7 +51,7 @@ class InscriptionRead(BaseModel):
     created_at: datetime
 
 
-# ---------- Cours ----------
+# Cours
 
 class CoursCreate(BaseModel):
     professeur_id: int
@@ -172,7 +172,7 @@ class SyntheseCoursRead(BaseModel):
     horodatage: datetime
 
 
-# ---------- Presence (eleves "en ligne" sur une seance) ----------
+# Presence (eleves "en ligne" sur une seance)
 # NB: plus de "ping" REST - la presence est geree par le cycle de vie de la
 # connexion WebSocket (voir /ws/seances/{id} dans main.py).
 

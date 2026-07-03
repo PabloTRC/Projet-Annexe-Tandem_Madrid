@@ -107,9 +107,9 @@ Points à retenir :
 
 - Alembic configure dans `db/` (`alembic.ini`, `env.py`, `versions/`)
 - `alembic upgrade head` applique `0001` puis `0002`
-- `seed.py` : 1 professeur, 3 eleves, 1 cours, 1 seance, 3 contenus
-  (2 slides + 1 pdf), 3 questions deja categorisees "a la main" (simulation),
-  1 synthese_questions, 1 synthese_cours
+- `reset_demo.py` : vide et remplit la base avec un jeu de donnees de demo
+  (3 cours dans 3 etats differents, eleves, inscriptions, contenus, questions
+  deja categorisees "a la main" (simulation), syntheses)
 - `tests_manuels_contraintes.md` : plan de tests manuels (cascade delete,
   unicite email, integrite referentielle) — deja valides au niveau SQL
 
