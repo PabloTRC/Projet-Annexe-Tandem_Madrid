@@ -51,6 +51,31 @@ export const api = {
     request(`/seances/${seanceId}/synthese-questions/generer`, { method: "POST" }),
   genererSyntheseCours: (seanceId) =>
     request(`/seances/${seanceId}/synthese-cours/generer`, { method: "POST" }),
+
+  // ---- Contenus (documents deposes par le professeur) ----
+  getContenus: (seanceId) => request(`/seances/${seanceId}/contenus`),
+  uploadContenu: async (seanceId, file, type = "fichier") => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("type", type);
+    const res = await fetch(`${API_URL}/seances/${seanceId}/contenus/upload`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        const body = await res.json();
+        detail = body.detail || detail;
+      } catch {
+        // reponse non-JSON
+      }
+      throw new Error(detail);
+    }
+    return res.json();
+  },
+  downloadContenuUrl: (seanceId, contenuId) =>
+    `${API_URL}/seances/${seanceId}/contenus/${contenuId}/download`,
 };
 
 export default api;
