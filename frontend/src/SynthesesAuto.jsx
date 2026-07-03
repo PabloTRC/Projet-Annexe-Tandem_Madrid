@@ -10,10 +10,7 @@ function formatCountdown(ms) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// ==========================================================
-// 🕒 Historique organisé des synthèses générées automatiquement
-// toutes les 20 minutes, + génération manuelle à la demande.
-// ==========================================================
+//Synthèse manuelle ou auto toutes les 20 min mais possibilités 
 export default function SynthesesAuto({ syntheses, nextRunAt, generating, error, onGenerateNow, onBack }) {
   const [now, setNow] = useState(() => Date.now());
 

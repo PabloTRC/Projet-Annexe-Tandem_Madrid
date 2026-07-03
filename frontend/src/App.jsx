@@ -2,16 +2,10 @@ import { useState } from 'react'
 import EspaceEleve from './EspaceEleve';
 import EspaceProfesseur from './EspaceProfesseur';
 
-// ==========================================================
-// ⚙️  CONFIGURATION — Code d'accès à l'espace professeur
-// (à changer facilement ici, ou plus tard à récupérer via API)
-// ==========================================================
+//Espace prof
 const CODE_ACCES_PROF = "TANDEM2025";
 
-
-// ==========================================================
-// 🌸 MOTIF FLEUR — petit ornement décoratif (5 pétales)
-// ==========================================================
+//Fleur
 function FleurMotif({ className = "h-8 w-8", color = "#fbcfe8" }) {
   return (
     <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -35,9 +29,7 @@ function FleurMotif({ className = "h-8 w-8", color = "#fbcfe8" }) {
   );
 }
 
-// ==========================================================
-// ⛏ LAMPE DE MINEUR — style lampe Davy avec flamme
-// ==========================================================
+//Lampe
 function LampeMineur({ className = "h-10 w-7", color = "#fbcfe8" }) {
   return (
     <svg className={className} viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -74,10 +66,7 @@ function LampeMineur({ className = "h-10 w-7", color = "#fbcfe8" }) {
   );
 }
 
-// ==========================================================
-// 🎨 LOGO — Deux bulles de dialogue entrelacées
-// Symbolique : l'échange prof ↔ élève (le "tandem")
-// ==========================================================
+//Echange
 function LogoTandem({ className = "h-8 w-8" }) {
   return (
     <svg
@@ -112,9 +101,7 @@ function LogoTandem({ className = "h-8 w-8" }) {
 }
 
 
-// ==========================================================
-// 🔐 Écran de connexion — Espace professeur
-// ==========================================================
+// Ecran de verrouillage, professeur
 function EcranConnexionProf({ onSuccess }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -212,12 +199,9 @@ function EcranConnexionProf({ onSuccess }) {
 }
 
 
-// ==========================================================
-// 🏠 APP — Racine
-// ==========================================================
+//Racine de l'application
 function App() {
   const [activePage, setActivePage] = useState('professeur');
-  // 🔐 État d'authentification de l'espace prof
   const [profAuthenticated, setProfAuthenticated] = useState(false);
 
   return (
