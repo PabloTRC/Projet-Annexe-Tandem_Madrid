@@ -26,9 +26,19 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  // ---- Professeurs ----
+  getProfesseurs: () => request("/professeurs"),
+  createProfesseur: (nom, email) =>
+    request("/professeurs", { method: "POST", body: JSON.stringify({ nom, email }) }),
+
   // ---- Cours ----
   getCours: () => request("/cours"),
   getCoursFull: (coursId) => request(`/cours/${coursId}/full`),
+  createCours: (professeurId, titre, description) =>
+    request("/cours", {
+      method: "POST",
+      body: JSON.stringify({ professeur_id: professeurId, titre, description: description || null }),
+    }),
 
   // ---- Seances ----
   getSeanceFull: (seanceId) => request(`/seances/${seanceId}/full`),
