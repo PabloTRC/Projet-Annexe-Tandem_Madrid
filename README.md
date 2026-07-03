@@ -9,7 +9,7 @@
 - **Espace élève** : rejoindre une classe avec un pseudo + choix parmi 9 matières (Mathématiques, Anglais, Français, Histoire, Informatique, Physique, Latin, Espagnol, Chinois).
 - **Espace professeur** protégé par code d'accès "TANDEM2025": tableau de bord des questions reçues, filtrés (toutes / non lues / répondues), épinglage des questions prioritaires.
 - **Fil en temps réel** des questions envoyées par les élèves (via WebSocket).
-- **Catégorisation** des questions (Général / Technique / Exercice) pour un tri rapide plus visuel.
+- **Catégorisation** des questions (Ollama) (Approfondie/ Élémentaire/ Cours précédent) pour un tri rapide plus visuel.
 - **Synthèse LLM**(Ollama) toutes les 20mn, prévue pour regrouper les questions similaires, évite au prof de répondre plusieurs fois à la même chose.
 
 
