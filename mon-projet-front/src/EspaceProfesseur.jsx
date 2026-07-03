@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import api from "./api";
+import SuiviEleves from "./SuiviEleves";
 
 const categoryStyles = {
   cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
@@ -84,6 +85,7 @@ export default function EspaceProfesseur() {
   const [questions, setQuestions] = useState([]);
   const [elevesMap, setElevesMap] = useState({});
   const [filter, setFilter] = useState("all");
+  const [view, setView] = useState("questions"); // "questions" | "suivi"
 
   // Etats purement locaux (pas de colonnes correspondantes cote backend) :
   // lu / repondue / epinglee, garde en memoire par id de question.
@@ -206,6 +208,16 @@ export default function EspaceProfesseur() {
     );
   }
 
+  if (view === "suivi") {
+    return (
+      <SuiviEleves
+        cours={cours}
+        elevesMap={elevesMap}
+        onBack={() => setView("questions")}
+      />
+    );
+  }
+
   return (
     <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_340px] gap-6 p-6">
@@ -222,15 +234,24 @@ export default function EspaceProfesseur() {
                   {cours?.titre} — mis à jour automatiquement toutes les {POLL_INTERVAL_MS / 1000}s.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setSeanceId(null);
-                  setCours(null);
-                }}
-                className="shrink-0 rounded-lg border border-pink-200 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-50"
-              >
-                Changer de cours
-              </button>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  onClick={() => setView("suivi")}
+                  className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"
+                >
+                  Suivi des élèves
+                </button>
+                <button
+                  onClick={() => {
+                    setSeanceId(null);
+                    setCours(null);
+                    setView("questions");
+                  }}
+                  className="rounded-lg border border-pink-200 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-50"
+                >
+                  Changer de cours
+                </button>
+              </div>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
