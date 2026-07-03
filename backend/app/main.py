@@ -363,12 +363,16 @@ def list_eleves_en_ligne(seance_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/seances/{seance_id}/contenus", response_model=schemas.ContenuRead, status_code=201)
-def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session = Depends(get_db)):
+async def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session = Depends(get_db)):
     get_or_404(db, models.Seance, seance_id, "Seance")
     contenu = models.Contenu(seance_id=seance_id, **payload.model_dump())
     db.add(contenu)
     db.commit()
     db.refresh(contenu)
+
+    contenu_data = schemas.ContenuRead.model_validate(contenu).model_dump()
+    await manager.broadcast(seance_id, {"type": "contenu_created", "data": contenu_data})
+
     return contenu
 
 
@@ -491,7 +495,7 @@ def download_contenu(seance_id: int, contenu_id: int, db: Session = Depends(get_
 
 
 @app.post("/seances/{seance_id}/questions", response_model=schemas.QuestionRead, status_code=201)
-def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session = Depends(get_db)):
+async def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session = Depends(get_db)):
     get_or_404(db, models.Seance, seance_id, "Seance")
     if payload.eleve_id is not None:
         get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
@@ -508,6 +512,13 @@ def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session
     db.add(question)
     db.commit()
     db.refresh(question)
+
+    # Diffusion en direct : tous les clients connectes au WS de cette seance
+    # (professeur + autres eleves) recoivent la nouvelle question sans avoir
+    # besoin de re-interroger l'API.
+    question_data = schemas.QuestionRead.model_validate(question).model_dump()
+    await manager.broadcast(seance_id, {"type": "question_created", "data": question_data})
+
     return question
 
 
@@ -523,13 +534,17 @@ def list_questions(seance_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/questions/{question_id}", response_model=schemas.QuestionRead)
-def update_question(question_id: int, payload: schemas.QuestionUpdate, db: Session = Depends(get_db)):
+async def update_question(question_id: int, payload: schemas.QuestionUpdate, db: Session = Depends(get_db)):
     """Utilisé par le pipeline LLM pour remplir `categorie` a posteriori."""
     question = get_or_404(db, models.Question, question_id, "Question")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(question, field, value)
     db.commit()
     db.refresh(question)
+
+    question_data = schemas.QuestionRead.model_validate(question).model_dump()
+    await manager.broadcast(question.seance_id, {"type": "question_updated", "data": question_data})
+
     return question
 
 
