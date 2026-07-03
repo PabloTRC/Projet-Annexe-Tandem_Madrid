@@ -1,6 +1,6 @@
 # Projet-Annexe-Tandem_Madrid
 
-# El Tandem Educacion
+# El Tandem Educación
 
 > Application compagnon pour enseignants et élèves : les élèves peuvent poser leurs questions en temps réel pendant un cours et le prof leur renvoie une synthèse par IA ce qui permet un meilleur suivi par l'enseignant du niveau de sa classe.
 
