@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import api from "./api";
 import SuiviEleves from "./SuiviEleves";
 import DocumentsCours from "./DocumentsCours";
+import SynthesesAuto, { AUTO_INTERVAL_MS } from "./SynthesesAuto";
 
 const categoryStyles = {
   cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
@@ -86,7 +87,14 @@ export default function EspaceProfesseur() {
   const [questions, setQuestions] = useState([]);
   const [elevesMap, setElevesMap] = useState({});
   const [filter, setFilter] = useState("all");
-  const [view, setView] = useState("questions"); // "questions" | "suivi" | "documents"
+  const [view, setView] = useState("questions"); // "questions" | "suivi" | "documents" | "auto"
+
+  // Synthese automatique des questions, toutes les 20 minutes tant qu'une
+  // seance est suivie (independant de l'onglet affiche).
+  const [autoSyntheses, setAutoSyntheses] = useState([]);
+  const [autoGenerating, setAutoGenerating] = useState(false);
+  const [autoError, setAutoError] = useState("");
+  const [nextAutoAt, setNextAutoAt] = useState(null);
 
   // Etats purement locaux (pas de colonnes correspondantes cote backend) :
   // lu / repondue / epinglee, garde en memoire par id de question.
@@ -147,6 +155,62 @@ export default function EspaceProfesseur() {
     pollRef.current = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(pollRef.current);
   }, [seanceId]);
+
+  // ---- Demande la permission de notification navigateur (une seule fois) ----
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // ---- Synthese automatique des questions, toutes les 20 minutes ----
+  const genererSyntheseAuto = useCallback(async () => {
+    if (!seanceId) return;
+    setAutoGenerating(true);
+    setAutoError("");
+    try {
+      const res = await api.genererSyntheseQuestions(seanceId);
+      setAutoSyntheses((prev) => [
+        { id: res.id, texte: res.texte_genere, horodatage: res.horodatage },
+        ...prev,
+      ]);
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        new Notification("Nouvelle synthèse des questions", {
+          body: res.texte_genere.slice(0, 140),
+        });
+      }
+    } catch (err) {
+      setAutoError(err.message || "Erreur lors de la génération automatique de la synthèse.");
+    } finally {
+      setAutoGenerating(false);
+    }
+  }, [seanceId]);
+
+  useEffect(() => {
+    if (!seanceId) return;
+    let cancelled = false;
+
+    (async () => {
+      if (cancelled) return;
+      setAutoSyntheses([]);
+      setNextAutoAt(Date.now() + AUTO_INTERVAL_MS);
+    })();
+
+    const interval = setInterval(() => {
+      genererSyntheseAuto();
+      setNextAutoAt(Date.now() + AUTO_INTERVAL_MS);
+    }, AUTO_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [seanceId, genererSyntheseAuto]);
+
+  const handleGenererSyntheseAutoMaintenant = () => {
+    genererSyntheseAuto();
+    setNextAutoAt(Date.now() + AUTO_INTERVAL_MS);
+  };
 
   const getLocal = (id) => localState[id] ?? { read: false, answered: false, pinned: false };
 
@@ -219,6 +283,19 @@ export default function EspaceProfesseur() {
     );
   }
 
+  if (view === "auto") {
+    return (
+      <SynthesesAuto
+        syntheses={autoSyntheses}
+        nextRunAt={nextAutoAt}
+        generating={autoGenerating}
+        error={autoError}
+        onGenerateNow={handleGenererSyntheseAutoMaintenant}
+        onBack={() => setView("questions")}
+      />
+    );
+  }
+
   if (view === "documents") {
     return (
       <DocumentsCours
@@ -246,6 +323,12 @@ export default function EspaceProfesseur() {
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
+                <button
+                  onClick={() => setView("auto")}
+                  className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"
+                >
+                  Synthèses auto {autoSyntheses.length > 0 && `(${autoSyntheses.length})`}
+                </button>
                 <button
                   onClick={() => setView("documents")}
                   className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"
