@@ -2,7 +2,8 @@
 
 # El Tandem Educacion
 
-> Application compagnon pour enseignants et élèves : les élèves peuvent poser leurs questions en temps réel pendant un cours et le prof leur renvoie une synthèse par IA ce qui permet un meilleur suivi par l'enseignant du niveau de sa classe.
+> Notre projet: 
+> Une application compagnon pour enseignants et élèves : les élèves peuvent poser leurs questions en temps réel pendant un cours et le prof leur renvoie une synthèse générée par IA toutes les 20mn pour leur répondre. Notre application permet aussi de suivre les questions posées par les élèves pour permettre à l'enseignant de suivre le niveau de sa classe et les élèves en difficulté.
 
 ## Fonctionnalités
 
@@ -45,7 +46,7 @@ Pour faire fonctionner le code, il faut avoir :
 
 1. Cliquer sur l'onglet **Élève** dans la barre latérale rose.
 2. Saisir son **nom**.
-3. Choisir sa **matière** dans la grille (Mathématiques, Anglais, Français…).
+3. Choisir son cours parmi ceux inscris
 4. Cliquer sur **Rejoindre la classe virtuelle**.
 5. Poser des questions via le formulaire de gauche (avec catégorie : Général / Technique / Exercice).
 6. Suivre le fil des questions de la classe à droite en temps réel.
@@ -54,11 +55,12 @@ Pour faire fonctionner le code, il faut avoir :
 
 1. Cliquer sur l'onglet **Professeur** dans la barre latérale rose.
 2. Saisir le **code d'accès** (`TANDEM2025`).
-3. Le tableau de bord affiche toutes les questions reçues.
+3. Le professeur arrive dans son espace: il peut déposer ses documents sur la plateforme, voir le suivi des élèves, lesquels sont en ligne. Le tableau de bord affiche aussi toutes les questions reçues.
 4. Actions disponibles :
    - **Épingler** une question prioritaire (icône en haut à droite de chaque carte): ensuite elle s'affiche dans le panneau de droite.
    - **Marquer comme lue** pour la sortir de l'onglet *Non lues*.
    - **Traitée** pour archiver une question épinglée.
+   - **générer la synthèse** automatique toutes les 20mn, sinon en apppuyant sur le bouton
 5. Filtres rapides en haut : *Toutes* / *Non lues* / *Répondues*.
 6. Bouton **Déconnexion prof** dans la barre latérale pour terminer la session.
 

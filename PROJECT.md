@@ -49,7 +49,7 @@ GET    /api/eleves/{id}/suivi             Historique des questions/catégories d
 ### Base de données — PostgreSQL 16 (Docker)
 
 - Données **relationnelles** (cours → séances → questions → élèves) : SQL est le bon outil.
-- **Docker Compose** pour éviter les "ça marche chez moi" entre nos machines et pour un déploiement futur simplifié.
+- **Docker Compose** pour éviter que ça ne marche que chez nous pour un déploiement futur simplifié.
 
 ### LLM — Ollama en local
 
@@ -59,7 +59,7 @@ GET    /api/eleves/{id}/suivi             Historique des questions/catégories d
 
 ### Temps réel — WebSocket (Socket.io)
 
-Un simple polling REST aurait suffi pour un prototype, mais nous voulions **la sensation "live"** côté prof. Une nouvelle question doit apparaître **immédiatement**, pas dans 5 secondes. Socket.io gère aussi la reconnexion automatique — utile si un élève perd le réseau.
+Nous voulions **la sensation "live"** côté prof: une nouvelle question doit apparaître **immédiatement**.
 
 ### Design system — palette rose
 
