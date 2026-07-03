@@ -1,0 +1,74 @@
+/* Styles spécifiques au portail (choix de l'espace). */
+
+.role-hero {
+  min-height: calc(100vh - var(--header-height));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.role-hero__title {
+  font-size: 2rem;
+  margin-bottom: var(--space-2);
+}
+
+.role-hero__subtitle {
+  color: var(--color-text-muted);
+  max-width: 480px;
+  margin: 0 auto var(--space-6);
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 320px));
+  gap: var(--space-5);
+}
+
+.role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-5);
+  text-decoration: none;
+  color: inherit;
+  border-top: 3px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.role-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.role-card--prof {
+  border-top-color: var(--color-primary);
+}
+
+.role-card--eleve {
+  border-top-color: var(--color-status-ok);
+}
+
+.role-card__icon {
+  font-size: 2.5rem;
+}
+
+.role-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.role-card__desc {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 640px) {
+  .role-grid {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+}

@@ -1,0 +1,330 @@
+/* Styles spécifiques au frontend professeur. */
+
+/* ---------- Emploi du temps ---------- */
+
+.schedule {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+.schedule-slot {
+  flex: 0 0 auto;
+  min-width: 180px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.schedule-slot--active {
+  border-color: var(--color-live);
+  background: var(--color-live-bg);
+}
+
+.schedule-slot--imminent {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.schedule-slot__time {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+}
+
+.schedule-slot__title {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  margin-top: 2px;
+}
+
+/* ---------- Cartes de classe ---------- */
+
+.classe-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  text-decoration: none;
+  color: inherit;
+}
+
+.classe-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.classe-card__title {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+}
+
+.classe-card__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.classe-card__footer {
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+/* ---------- Vue classe ---------- */
+
+.eleves-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.toggle input {
+  width: 36px;
+  height: 20px;
+  appearance: none;
+  background: var(--color-border);
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.toggle input::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.toggle input:checked {
+  background: var(--color-primary);
+}
+
+.toggle input:checked::before {
+  transform: translateX(16px);
+}
+
+.eleve-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  text-decoration: none;
+  color: inherit;
+}
+
+.eleve-row:last-child {
+  border-bottom: none;
+}
+
+.eleve-row:hover {
+  background: var(--color-bg);
+}
+
+.eleve-row__nom {
+  font-weight: 600;
+}
+
+.dropzone {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--color-text-muted);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropzone--active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.doc-row:last-child {
+  border-bottom: none;
+}
+
+.doc-row__name {
+  font-weight: 600;
+}
+
+/* position: fixed (et non sticky) pour garantir que le bouton reste
+   toujours visible sans jamais chevaucher le contenu qui le précède ;
+   .page--has-sticky-launch réserve l'espace correspondant en bas de page. */
+.sticky-launch {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.sticky-launch .btn {
+  pointer-events: auto;
+  box-shadow: var(--shadow-md);
+}
+
+.page--has-sticky-launch {
+  padding-bottom: 88px;
+}
+
+/* ---------- Détail élève ---------- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.timeline-seance__date {
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+
+.timeline-item {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  margin-bottom: var(--space-2);
+}
+
+.timeline-item:last-child {
+  margin-bottom: 0;
+}
+
+.timeline-item__meta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notion-tag {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--color-status-difficulte-bg);
+  color: var(--color-status-difficulte);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin: 2px;
+}
+
+/* ---------- Cours en direct ---------- */
+
+.live-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.live-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.question-group {
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.question-group__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+
+.question-item {
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.question-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.question-item__meta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.question-item--new {
+  animation: highlight-new 1.6s ease;
+}
+
+@keyframes highlight-new {
+  0% { background: var(--color-primary-light); }
+  100% { background: transparent; }
+}
+
+.synthese-box {
+  white-space: pre-line;
+  line-height: 1.6;
+}
+
+.live-sidebar {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (max-width: 860px) {
+  .live-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .live-sidebar {
+    position: static;
+  }
+}
