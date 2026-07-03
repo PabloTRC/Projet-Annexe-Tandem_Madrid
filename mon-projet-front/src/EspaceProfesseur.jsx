@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import api from "./api";
+import { connectSeanceSocket } from "./ws";
 import SuiviEleves from "./SuiviEleves";
 import DocumentsCours from "./DocumentsCours";
 import SynthesesAuto, { AUTO_INTERVAL_MS } from "./SynthesesAuto";
+import GestionEleves from "./GestionEleves";
 
 const categoryStyles = {
   cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
@@ -23,8 +25,6 @@ function categoryStyle(categorie) {
 function categoryLabel(categorie) {
   return categorie ? categoryLabels[categorie] ?? categorie : "Non catégorisée";
 }
-
-const POLL_INTERVAL_MS = 4000;
 
 // ==========================================================
 // Formulaire d'ajout d'une classe (cours)
@@ -188,8 +188,15 @@ export default function EspaceProfesseur() {
 
   const [questions, setQuestions] = useState([]);
   const [elevesMap, setElevesMap] = useState({});
+  const [elevesEnLigne, setElevesEnLigne] = useState([]);
+  const [wsConnected, setWsConnected] = useState(false);
   const [filter, setFilter] = useState("all");
-  const [view, setView] = useState("questions"); // "questions" | "suivi" | "documents" | "auto"
+  const [view, setView] = useState("questions"); // "questions" | "suivi" | "documents" | "auto" | "eleves"
+
+  const elevesMapRef = useRef({});
+  useEffect(() => {
+    elevesMapRef.current = elevesMap;
+  }, [elevesMap]);
 
   // Synthese automatique des questions, toutes les 20 minutes tant qu'une
   // seance est suivie (independant de l'onglet affiche).
@@ -206,8 +213,6 @@ export default function EspaceProfesseur() {
   const [syntheseCours, setSyntheseCours] = useState(null);
   const [genererLoading, setGenererLoading] = useState(null); // "questions" | "cours" | null
   const [genererError, setGenererError] = useState("");
-
-  const pollRef = useRef(null);
 
   useEffect(() => {
     api
@@ -254,15 +259,20 @@ export default function EspaceProfesseur() {
     }
   }, []);
 
-  // ---- Polling des questions + des eleves ----
+  // ---- Chargement initial (historique) + connexion WebSocket temps réel ----
+  // Une seule connexion WS remplace tout le polling : questions, présence
+  // (élèves en ligne) et synthèses arrivent au fil de l'eau sur le même
+  // canal. Pas d'eleveId ici : cette connexion est identifiée comme
+  // "professeur" côté serveur (elle ne compte pas dans la présence élèves).
   useEffect(() => {
     if (!seanceId) return;
+    let cancelled = false;
 
-    const refresh = () => {
-      api.getQuestions(seanceId).then(setQuestions).catch(() => {});
+    function refreshElevesMap() {
       api
         .getEleves()
         .then((eleves) => {
+          if (cancelled) return;
           const map = {};
           eleves.forEach((e) => {
             map[e.id] = e.nom;
@@ -270,11 +280,67 @@ export default function EspaceProfesseur() {
           setElevesMap(map);
         })
         .catch(() => {});
-    };
+    }
 
-    refresh();
-    pollRef.current = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
+    api.getQuestions(seanceId).then((qs) => !cancelled && setQuestions(qs)).catch(() => {});
+    refreshElevesMap();
+
+    const socket = connectSeanceSocket(seanceId, {
+      onOpen: () => setWsConnected(true),
+      onClose: () => setWsConnected(false),
+      onMessage: (message) => {
+        switch (message.type) {
+          case "question_created":
+          case "question_updated": {
+            const q = message.data;
+            setQuestions((prev) => {
+              const exists = prev.some((x) => x.id === q.id);
+              return exists ? prev.map((x) => (x.id === q.id ? q : x)) : [...prev, q];
+            });
+            if (q.eleve_id != null && !elevesMapRef.current[q.eleve_id]) {
+              refreshElevesMap();
+            }
+            break;
+          }
+          case "presence_snapshot":
+            setElevesEnLigne(message.eleves ?? []);
+            break;
+          case "presence_join":
+            setElevesEnLigne((prev) =>
+              prev.some((e) => e.id === message.eleve.id) ? prev : [...prev, message.eleve]
+            );
+            break;
+          case "presence_leave":
+            setElevesEnLigne((prev) => prev.filter((e) => e.id !== message.eleve_id));
+            break;
+          case "synthese_questions": {
+            const s = message.data;
+            setSyntheseQuestions(s.texte_genere);
+            setAutoSyntheses((prev) =>
+              prev.some((x) => x.id === s.id)
+                ? prev
+                : [{ id: s.id, texte: s.texte_genere, horodatage: s.horodatage }, ...prev]
+            );
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+              new Notification("Nouvelle synthèse des questions", {
+                body: s.texte_genere.slice(0, 140),
+              });
+            }
+            break;
+          }
+          case "synthese_cours":
+            setSyntheseCours(message.data.texte_genere);
+            break;
+          default:
+            break;
+        }
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      socket.close();
+    };
   }, [seanceId]);
 
   // ---- Demande la permission de notification navigateur (une seule fois) ----
@@ -285,21 +351,17 @@ export default function EspaceProfesseur() {
   }, []);
 
   // ---- Synthese automatique des questions, toutes les 20 minutes ----
+  // NB: la mise a jour de autoSyntheses/syntheseQuestions + la notification
+  // sont gerees par le handler WS "synthese_questions" ci-dessus (le client
+  // qui declenche la generation recoit aussi le broadcast) : ici on se
+  // contente de declencher la generation cote serveur et de gerer le
+  // chargement/l'erreur.
   const genererSyntheseAuto = useCallback(async () => {
     if (!seanceId) return;
     setAutoGenerating(true);
     setAutoError("");
     try {
-      const res = await api.genererSyntheseQuestions(seanceId);
-      setAutoSyntheses((prev) => [
-        { id: res.id, texte: res.texte_genere, horodatage: res.horodatage },
-        ...prev,
-      ]);
-      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-        new Notification("Nouvelle synthèse des questions", {
-          body: res.texte_genere.slice(0, 140),
-        });
-      }
+      await api.genererSyntheseQuestions(seanceId);
     } catch (err) {
       setAutoError(err.message || "Erreur lors de la génération automatique de la synthèse.");
     } finally {
@@ -419,6 +481,10 @@ export default function EspaceProfesseur() {
     );
   }
 
+  if (view === "eleves") {
+    return <GestionEleves cours={cours} onBack={() => setView("questions")} />;
+  }
+
   if (view === "documents") {
     return (
       <DocumentsCours
@@ -441,11 +507,35 @@ export default function EspaceProfesseur() {
                 <h2 className="text-2xl font-bold text-slate-800">
                   Questions des élèves
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {cours?.titre} — mis à jour automatiquement toutes les {POLL_INTERVAL_MS / 1000}s.
-                </p>
+                <p className="mt-1 text-sm text-slate-500">{cours?.titre}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+                      wsConnected
+                        ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                        : "bg-amber-50 border-amber-100 text-amber-700"
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        wsConnected ? "animate-pulse bg-emerald-500" : "bg-amber-500"
+                      }`}
+                    />
+                    {wsConnected ? "Connecté en direct" : "Reconnexion en cours…"}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                    {elevesEnLigne.length} élève{elevesEnLigne.length > 1 ? "s" : ""} en ligne
+                  </span>
+                </div>
               </div>
               <div className="flex shrink-0 gap-2">
+                <button
+                  onClick={() => setView("eleves")}
+                  className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"
+                >
+                  Élèves
+                </button>
                 <button
                   onClick={() => setView("auto")}
                   className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"
@@ -618,8 +708,34 @@ export default function EspaceProfesseur() {
           </div>
         </div>
 
-        {/* Colonne de droite : épinglées */}
-        <aside className="flex min-h-0 flex-col rounded-2xl bg-white border border-pink-100 shadow-sm">
+        {/* Colonne de droite : élèves en ligne + épinglées */}
+        <aside className="flex min-h-0 flex-col gap-6">
+          <div className="max-h-56 flex flex-col rounded-2xl bg-white border border-pink-100 shadow-sm">
+            <div className="border-b border-pink-100 p-4">
+              <h2 className="text-sm font-bold text-slate-700">
+                Élèves en ligne ({elevesEnLigne.length})
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {elevesEnLigne.length === 0 ? (
+                <p className="p-2 text-center text-xs text-slate-400">
+                  Aucun élève en ligne pour le moment.
+                </p>
+              ) : (
+                elevesEnLigne.map((eleve) => (
+                  <div
+                    key={eleve.id}
+                    className="flex items-center gap-2 rounded-lg bg-emerald-50/60 px-2.5 py-1.5 text-sm text-slate-700"
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                    {eleve.nom}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-white border border-pink-100 shadow-sm">
           <div className="border-b border-pink-100 p-6">
             <h2 className="text-xl font-bold text-slate-800">Questions Épinglées</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -662,6 +778,7 @@ export default function EspaceProfesseur() {
                 </div>
               );
             })}
+          </div>
           </div>
         </aside>
 

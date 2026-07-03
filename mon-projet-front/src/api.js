@@ -6,7 +6,13 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function request(path, options = {}) {
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    // Ne pas forcer Content-Type sur les requetes sans corps (ex. GET) :
+    // sinon le navigateur declenche un preflight CORS (OPTIONS) inutile,
+    // qui peut echouer silencieusement ("Load failed"/"Failed to fetch").
+    headers: {
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(options.headers || {}),
+    },
     ...options,
   });
 
@@ -47,6 +53,16 @@ export const api = {
   getEleves: () => request("/eleves"),
   createEleve: (nom) =>
     request("/eleves", { method: "POST", body: JSON.stringify({ nom }) }),
+
+  // ---- Inscriptions (gestion des eleves d'une classe) ----
+  getElevesInscrits: (coursId) => request(`/cours/${coursId}/eleves`),
+  inscrireEleve: (coursId, eleveId) =>
+    request(`/cours/${coursId}/eleves`, {
+      method: "POST",
+      body: JSON.stringify({ eleve_id: eleveId }),
+    }),
+  desinscrireEleve: (coursId, eleveId) =>
+    request(`/cours/${coursId}/eleves/${eleveId}`, { method: "DELETE" }),
 
   // ---- Questions ----
   getQuestions: (seanceId) => request(`/seances/${seanceId}/questions`),

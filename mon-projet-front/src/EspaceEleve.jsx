@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import api from "./api";
+import { connectSeanceSocket } from "./ws";
 
 // ==========================================================
 // Style par categorie de question (categories reelles renvoyees
@@ -24,10 +25,6 @@ function categoryStyle(categorie) {
 function categoryLabel(categorie) {
   return categorie ? categoryLabels[categorie] ?? categorie : "Non catégorisée";
 }
-
-// Intervalle de rafraichissement du flux de questions (pas de WebSocket
-// cote backend, on "simule" le temps reel par polling).
-const POLL_INTERVAL_MS = 4000;
 
 // ==========================================================
 // PHASE 1 — Écran de connexion élève (nom + choix du cours)
@@ -282,9 +279,9 @@ function FormulaireQuestion({ onSend, cours, sending }) {
 }
 
 // ==========================================================
-// PHASE 2 — Colonne droite : flux temps réel (polling)
+// PHASE 2 — Colonne droite : flux temps réel (WebSocket)
 // ==========================================================
-function FluxQuestions({ questions, currentEleveId, elevesMap, cours }) {
+function FluxQuestions({ questions, currentEleveId, elevesMap, cours, wsConnected }) {
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-pink-100 bg-white shadow-sm">
       <div className="border-b border-pink-100 p-6">
@@ -295,12 +292,18 @@ function FluxQuestions({ questions, currentEleveId, elevesMap, cours }) {
               {cours && <span className="ml-2 text-pink-600">· {cours.titre}</span>}
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Flux mis à jour automatiquement toutes les {POLL_INTERVAL_MS / 1000}s.
+              {wsConnected ? "Connecté en direct — les nouvelles questions apparaissent instantanément." : "Connexion en direct interrompue, reconnexion en cours…"}
             </p>
           </div>
 
-          <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-pink-50 border border-pink-100 px-3 py-1 text-sm font-medium text-pink-700">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+          <span
+            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium ${
+              wsConnected
+                ? "bg-pink-50 border-pink-100 text-pink-700"
+                : "bg-amber-50 border-amber-100 text-amber-700"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${wsConnected ? "animate-pulse bg-emerald-500" : "bg-amber-500"}`} />
             {questions.length} question{questions.length > 1 ? "s" : ""}
           </span>
         </div>
@@ -377,8 +380,12 @@ export default function EspaceEleve() {
   const [elevesMap, setElevesMap] = useState({});
   const [documents, setDocuments] = useState([]);
   const [sending, setSending] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
-  const pollRef = useRef(null);
+  const elevesMapRef = useRef({});
+  useEffect(() => {
+    elevesMapRef.current = elevesMap;
+  }, [elevesMap]);
 
   // ---- Chargement de la liste des cours au montage ----
   useEffect(() => {
@@ -424,16 +431,21 @@ export default function EspaceEleve() {
     []
   );
 
-  // ---- Polling du flux de questions + liste des eleves (pour les noms) ----
+  // ---- Chargement initial (historique) + connexion WebSocket temps réel ----
+  // Le WS ne pousse que les NOUVEAUX évènements ; l'état existant (questions
+  // déjà posées, documents déjà partagés, liste des élèves) est chargé une
+  // fois via l'API classique au moment de rejoindre la séance. Se connecter
+  // au WS avec eleve_id signale aussi la présence de cet élève au
+  // professeur (plus besoin de heartbeat séparé).
   useEffect(() => {
     if (!seanceId) return;
+    let cancelled = false;
 
-    const refresh = () => {
-      api.getQuestions(seanceId).then(setQuestions).catch(() => {});
-      api.getContenus(seanceId).then(setDocuments).catch(() => {});
+    function refreshElevesMap() {
       api
         .getEleves()
         .then((eleves) => {
+          if (cancelled) return;
           const map = {};
           eleves.forEach((e) => {
             map[e.id] = e.nom;
@@ -441,12 +453,38 @@ export default function EspaceEleve() {
           setElevesMap(map);
         })
         .catch(() => {});
-    };
+    }
 
-    refresh();
-    pollRef.current = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(pollRef.current);
-  }, [seanceId]);
+    api.getQuestions(seanceId).then((qs) => !cancelled && setQuestions(qs)).catch(() => {});
+    api.getContenus(seanceId).then((docs) => !cancelled && setDocuments(docs)).catch(() => {});
+    refreshElevesMap();
+
+    const socket = connectSeanceSocket(seanceId, {
+      eleveId,
+      onOpen: () => setWsConnected(true),
+      onClose: () => setWsConnected(false),
+      onMessage: (message) => {
+        if (message.type === "question_created" || message.type === "question_updated") {
+          const q = message.data;
+          setQuestions((prev) => {
+            const exists = prev.some((x) => x.id === q.id);
+            return exists ? prev.map((x) => (x.id === q.id ? q : x)) : [...prev, q];
+          });
+          if (q.eleve_id != null && !elevesMapRef.current[q.eleve_id]) {
+            refreshElevesMap();
+          }
+        } else if (message.type === "contenu_created") {
+          const d = message.data;
+          setDocuments((prev) => (prev.some((x) => x.id === d.id) ? prev : [...prev, d]));
+        }
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      socket.close();
+    };
+  }, [seanceId, eleveId]);
 
   const handleSendQuestion = async (texte) => {
     setSending(true);
@@ -487,6 +525,7 @@ export default function EspaceEleve() {
           currentEleveId={eleveId}
           elevesMap={elevesMap}
           cours={cours}
+          wsConnected={wsConnected}
         />
       </div>
     </div>
