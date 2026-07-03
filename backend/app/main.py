@@ -1,7 +1,7 @@
 import json
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -300,63 +300,30 @@ async def ws_seance(websocket: WebSocket, seance_id: int, eleve_id: int | None =
         db.close()
 
 
-# Presence (eleves "en ligne" sur une seance, via heartbeat cote client)
-# NB: conserve pour compatibilite / fallback, mais le WebSocket ci-dessus
-# est desormais la source de verite pour la presence en temps reel.
-
-# Un eleve est considere "en ligne" si son dernier heartbeat date de moins de
-# ONLINE_THRESHOLD_SECONDS (le frontend eleve envoie un heartbeat toutes les
-# 4 secondes en polling, donc 12s laisse 2-3 battements de marge).
-ONLINE_THRESHOLD_SECONDS = int(os.environ.get("ONLINE_THRESHOLD_SECONDS", 12))
-
-
-@app.post("/seances/{seance_id}/presence", response_model=schemas.EleveEnLigne)
-def signaler_presence(seance_id: int, payload: schemas.PresencePing, db: Session = Depends(get_db)):
-    """Heartbeat envoye periodiquement par le frontend eleve pendant qu'il
-    suit une seance : cree ou met a jour sa ligne de presence."""
-    get_or_404(db, models.Seance, seance_id, "Seance")
-    eleve = get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
-
-    presence = (
-        db.query(models.Presence)
-        .filter(
-            models.Presence.seance_id == seance_id,
-            models.Presence.eleve_id == payload.eleve_id,
-        )
-        .first()
-    )
-    now = datetime.now(timezone.utc)
-    if presence is None:
-        presence = models.Presence(seance_id=seance_id, eleve_id=payload.eleve_id, derniere_activite=now)
-        db.add(presence)
-    else:
-        presence.derniere_activite = now
-
-    db.commit()
-    return schemas.EleveEnLigne(id=eleve.id, nom=eleve.nom, derniere_activite=now)
+# Presence (eleves "en ligne" sur une seance)
+#
+# La source de verite est desormais le WebSocket : etre connecte sur
+# /ws/seances/{id} = etre en ligne (voir plus haut, presence_join /
+# presence_leave / presence_snapshot). Il n'y a donc plus de heartbeat REST
+# ni de table `presence` interrogee ici - l'ancien mecanisme (table
+# `presence`, migration 0004) reste en base par convention (on ne reecrit
+# jamais une migration passee) mais n'est plus utilise.
+#
+# Ce endpoint GET est garde comme filet de securite HTTP : utile pour un
+# affichage initial avant que la connexion WebSocket ne soit etablie, ou si
+# un client ne supporte pas les WebSocket. Il lit directement l'etat en
+# memoire du ConnectionManager, pas la base.
 
 
 @app.get("/seances/{seance_id}/presence", response_model=list[schemas.EleveEnLigne])
 def list_eleves_en_ligne(seance_id: int, db: Session = Depends(get_db)):
-    """Liste des eleves actuellement "en ligne" sur cette seance (heartbeat
-    recu il y a moins de ONLINE_THRESHOLD_SECONDS)."""
     get_or_404(db, models.Seance, seance_id, "Seance")
-    seuil = datetime.now(timezone.utc) - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
-
-    rows = (
-        db.query(models.Eleve, models.Presence.derniere_activite)
-        .join(models.Presence, models.Presence.eleve_id == models.Eleve.id)
-        .filter(
-            models.Presence.seance_id == seance_id,
-            models.Presence.derniere_activite >= seuil,
-        )
-        .order_by(models.Eleve.nom)
-        .all()
-    )
-    return [
-        schemas.EleveEnLigne(id=eleve.id, nom=eleve.nom, derniere_activite=derniere_activite)
-        for eleve, derniere_activite in rows
-    ]
+    ids_en_ligne = manager.eleves_en_ligne(seance_id)
+    if not ids_en_ligne:
+        return []
+    now = datetime.now(timezone.utc)
+    eleves = db.query(models.Eleve).filter(models.Eleve.id.in_(ids_en_ligne)).order_by(models.Eleve.nom).all()
+    return [schemas.EleveEnLigne(id=eleve.id, nom=eleve.nom, derniere_activite=now) for eleve in eleves]
 
 
 # Contenu

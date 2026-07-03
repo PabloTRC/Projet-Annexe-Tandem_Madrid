@@ -36,6 +36,21 @@ class EleveRead(BaseModel):
     created_at: datetime
 
 
+# ---------- Inscription (eleve <-> cours) ----------
+
+class InscriptionCreate(BaseModel):
+    eleve_id: int
+
+
+class InscriptionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    eleve_id: int
+    cours_id: int
+    created_at: datetime
+
+
 # ---------- Cours ----------
 
 class CoursCreate(BaseModel):
@@ -155,6 +170,18 @@ class SyntheseCoursRead(BaseModel):
     seance_id: int
     texte_genere: str
     horodatage: datetime
+
+
+# ---------- Presence (eleves "en ligne" sur une seance) ----------
+# NB: plus de "ping" REST - la presence est geree par le cycle de vie de la
+# connexion WebSocket (voir /ws/seances/{id} dans main.py).
+
+class EleveEnLigne(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nom: str
+    derniere_activite: datetime
 
 
 CoursFull.model_rebuild()
