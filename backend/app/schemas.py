@@ -4,7 +4,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 
-# ---------- Professeur ----------
+# Professeur
 
 class ProfesseurCreate(BaseModel):
     nom: str
@@ -20,7 +20,7 @@ class ProfesseurRead(BaseModel):
     created_at: datetime
 
 
-# ---------- Eleve ----------
+# Eleve
 
 class EleveCreate(BaseModel):
     nom: str
@@ -36,7 +36,7 @@ class EleveRead(BaseModel):
     created_at: datetime
 
 
-# ---------- Inscription (eleve <-> cours) ----------
+# Inscription (eleve <-> cours)
 
 class InscriptionCreate(BaseModel):
     eleve_id: int
@@ -51,7 +51,7 @@ class InscriptionRead(BaseModel):
     created_at: datetime
 
 
-# ---------- Cours ----------
+# Cours
 
 class CoursCreate(BaseModel):
     professeur_id: int
@@ -73,7 +73,7 @@ class CoursFull(CoursRead):
     seances: list["SeanceRead"] = []
 
 
-# ---------- Seance ----------
+# Séance
 
 class SeanceCreate(BaseModel):
     cours_id: int
@@ -103,7 +103,7 @@ class SeanceFull(SeanceRead):
     syntheses_cours: list["SyntheseCoursRead"] = []
 
 
-# ---------- Contenu ----------
+# Contenu
 
 class ContenuCreate(BaseModel):
     type: str
@@ -120,7 +120,7 @@ class ContenuRead(BaseModel):
     created_at: datetime
 
 
-# ---------- Question ----------
+# Question
 
 class QuestionCreate(BaseModel):
     texte: str
@@ -142,7 +142,7 @@ class QuestionRead(BaseModel):
     categorie: Optional[str] = None
 
 
-# ---------- Synthese questions ----------
+# Synthèse questions
 
 class SyntheseQuestionsCreate(BaseModel):
     texte_genere: str
@@ -157,7 +157,7 @@ class SyntheseQuestionsRead(BaseModel):
     horodatage: datetime
 
 
-# ---------- Synthese cours ----------
+# Synthèse cours
 
 class SyntheseCoursCreate(BaseModel):
     texte_genere: str
@@ -172,7 +172,7 @@ class SyntheseCoursRead(BaseModel):
     horodatage: datetime
 
 
-# ---------- Presence (eleves "en ligne" sur une seance) ----------
+# Presence (eleves "en ligne" sur une seance)
 # NB: plus de "ping" REST - la presence est geree par le cycle de vie de la
 # connexion WebSocket (voir /ws/seances/{id} dans main.py).
 
