@@ -21,12 +21,11 @@ function categoryStyle(categorie) {
   return categoryStyles[categorie] ?? "bg-slate-100 text-slate-500";
 }
 
-// Heuristique de statut, basee uniquement sur la categorie majoritaire parmi
-// les questions deja categorisees par le LLM (pas de donnee inventee) :
-//   - majorite "cours_precedent" -> lacunes sur des notions deja vues
-//   - majorite "elementaire"     -> a surveiller, niveau de base
-//   - majorite "approfondie"     -> va au-dela du cours, progresse bien
-//   - egalite / pas assez de donnees -> suit normalement
+//Différents types de questions et classification
+//majorité "cours_precedent" -> lacunes sur des notions déjà vues
+//majorité "elementaire"     -> à surveiller, niveau de base
+//majorité "approfondie"     -> va au-dela du cours, progresse bien
+//égalité / pas assez de données -> suit normalement
 function computeStatut(counts) {
   const { cours_precedent = 0, elementaire = 0, approfondie = 0 } = counts;
   const total = cours_precedent + elementaire + approfondie;

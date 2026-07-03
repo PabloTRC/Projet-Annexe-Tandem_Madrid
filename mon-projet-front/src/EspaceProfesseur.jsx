@@ -26,9 +26,7 @@ function categoryLabel(categorie) {
 
 const POLL_INTERVAL_MS = 4000;
 
-// ==========================================================
-// Formulaire d'ajout d'une classe (cours)
-// ==========================================================
+//ajout d'un cours
 function FormulaireAjoutClasse({ onCreate, disabled }) {
   const [open, setOpen] = useState(false);
   const [titre, setTitre] = useState("");
@@ -117,9 +115,7 @@ function FormulaireAjoutClasse({ onCreate, disabled }) {
   );
 }
 
-// ==========================================================
-// Écran de sélection du cours / de la séance à suivre
-// ==========================================================
+//sélection cours + séance
 function EcranSelectionCours({ coursList, loading, error, onSelect, onCreate, creatingDisabled }) {
   return (
     <div className="flex h-full items-center justify-center overflow-y-auto p-6 bg-gradient-to-br from-pink-50 via-rose-50 to-fuchsia-50">
@@ -170,9 +166,7 @@ function EcranSelectionCours({ coursList, loading, error, onSelect, onCreate, cr
   );
 }
 
-// ==========================================================
-// 👩‍🏫 ESPACE PROFESSEUR
-// ==========================================================
+//Professeur
 export default function EspaceProfesseur() {
   const [coursList, setCoursList] = useState([]);
   const [loadingCours, setLoadingCours] = useState(true);
@@ -182,8 +176,7 @@ export default function EspaceProfesseur() {
   const [seanceId, setSeanceId] = useState(null);
   const [selectError, setSelectError] = useState("");
 
-  // Compte professeur utilise pour creer les classes. Pas d'authentification
-  // pour l'instant : on prend le premier professeur trouve en base.
+  //Compte prof : pour l'instant qu'un seul, on prendra celui de base
   const [professeurId, setProfesseurId] = useState(null);
 
   const [questions, setQuestions] = useState([]);
@@ -191,15 +184,13 @@ export default function EspaceProfesseur() {
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("questions"); // "questions" | "suivi" | "documents" | "auto"
 
-  // Synthese automatique des questions, toutes les 20 minutes tant qu'une
-  // seance est suivie (independant de l'onglet affiche).
+  //synthèse des questions tt les 20 min
   const [autoSyntheses, setAutoSyntheses] = useState([]);
   const [autoGenerating, setAutoGenerating] = useState(false);
   const [autoError, setAutoError] = useState("");
   const [nextAutoAt, setNextAutoAt] = useState(null);
 
-  // Etats purement locaux (pas de colonnes correspondantes cote backend) :
-  // lu / repondue / epinglee, garde en memoire par id de question.
+  //classement questions
   const [localState, setLocalState] = useState({}); // { [questionId]: { read, answered, pinned } }
 
   const [syntheseQuestions, setSyntheseQuestions] = useState(null);
@@ -254,7 +245,7 @@ export default function EspaceProfesseur() {
     }
   }, []);
 
-  // ---- Polling des questions + des eleves ----
+  //Mettre des questions, des eleves
   useEffect(() => {
     if (!seanceId) return;
 
@@ -277,14 +268,14 @@ export default function EspaceProfesseur() {
     return () => clearInterval(pollRef.current);
   }, [seanceId]);
 
-  // ---- Demande la permission de notification navigateur (une seule fois) ----
+  //Demande la permission de notification navigateur (une seule fois)
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
     }
   }, []);
 
-  // ---- Synthese automatique des questions, toutes les 20 minutes ----
+  //Synthèse automatique des questions, toutes les 20 minutes
   const genererSyntheseAuto = useCallback(async () => {
     if (!seanceId) return;
     setAutoGenerating(true);
@@ -352,7 +343,6 @@ export default function EspaceProfesseur() {
       default:
         return questions;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questions, filter, localState]);
 
   const pinnedQuestions = questions.filter((q) => getLocal(q.id).pinned);

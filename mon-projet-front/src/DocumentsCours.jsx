@@ -9,9 +9,7 @@ function canDownload(contenu) {
   return Boolean(contenu.donnees?.file_path);
 }
 
-// ==========================================================
-// 📎 Documents de la séance — dépôt (prof) et liste (prof + élève)
-// ==========================================================
+//Documents séance, liste élèves etc...
 export default function DocumentsCours({ seanceId, cours, onBack }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);

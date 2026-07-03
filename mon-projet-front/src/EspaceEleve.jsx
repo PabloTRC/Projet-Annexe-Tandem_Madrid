@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import api from "./api";
 
-// ==========================================================
-// Style par categorie de question (categories reelles renvoyees
-// par le LLM cote backend : cours_precedent / elementaire / approfondie)
-// ==========================================================
+//Style pour les différentes types de classification de questions
 const categoryStyles = {
   cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
   elementaire: "bg-pink-100 text-pink-700",
@@ -25,13 +22,10 @@ function categoryLabel(categorie) {
   return categorie ? categoryLabels[categorie] ?? categorie : "Non catégorisée";
 }
 
-// Intervalle de rafraichissement du flux de questions (pas de WebSocket
-// cote backend, on "simule" le temps reel par polling).
+//rafraîchissement
 const POLL_INTERVAL_MS = 4000;
 
-// ==========================================================
-// PHASE 1 — Écran de connexion élève (nom + choix du cours)
-// ==========================================================
+//Connexion élève : écran, nom + choix de cours, ..
 function EcranConnexion({ coursList, loadingCours, coursError, onJoin, joining, joinError }) {
   const [name, setName] = useState("");
   const [selectedCoursId, setSelectedCoursId] = useState(null);
@@ -166,9 +160,7 @@ function EcranConnexion({ coursList, loadingCours, coursError, onJoin, joining, 
   );
 }
 
-// ==========================================================
-// PHASE 2 — Documents partagés par le professeur (téléchargement)
-// ==========================================================
+//Partage doc, synthèse à télécharger
 function DocumentsEleve({ documents, seanceId }) {
   if (!documents || documents.length === 0) return null;
 
@@ -202,9 +194,7 @@ function DocumentsEleve({ documents, seanceId }) {
   );
 }
 
-// ==========================================================
-// PHASE 2 — Colonne gauche : formulaire de question
-// ==========================================================
+//formulaire de questions
 function FormulaireQuestion({ onSend, cours, sending }) {
   const [text, setText] = useState("");
   const [feedback, setFeedback] = useState("");
@@ -281,9 +271,7 @@ function FormulaireQuestion({ onSend, cours, sending }) {
   );
 }
 
-// ==========================================================
-// PHASE 2 — Colonne droite : flux temps réel (polling)
-// ==========================================================
+//rafraichissement questions 
 function FluxQuestions({ questions, currentEleveId, elevesMap, cours }) {
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl border border-pink-100 bg-white shadow-sm">
@@ -357,9 +345,7 @@ function FluxQuestions({ questions, currentEleveId, elevesMap, cours }) {
   );
 }
 
-// ==========================================================
-// COMPOSANT PRINCIPAL — EspaceEleve
-// ==========================================================
+//l'espace des élèves
 export default function EspaceEleve() {
   const [coursList, setCoursList] = useState([]);
   const [loadingCours, setLoadingCours] = useState(true);
@@ -380,7 +366,7 @@ export default function EspaceEleve() {
 
   const pollRef = useRef(null);
 
-  // ---- Chargement de la liste des cours au montage ----
+  //Chargement de la liste des cours au montage
   useEffect(() => {
     api
       .getCours()
@@ -389,7 +375,7 @@ export default function EspaceEleve() {
       .finally(() => setLoadingCours(false));
   }, []);
 
-  // ---- Rejoindre un cours : creer l'eleve + trouver une seance ----
+  //Rejoindre un cours : créer l'élève + trouver une séance
   const handleJoin = useCallback(
     async (nom, coursId) => {
       setJoining(true);
@@ -406,7 +392,7 @@ export default function EspaceEleve() {
           return;
         }
 
-        // Seance la plus recente : en priorite celle "en_cours", sinon la derniere
+        //séance la plus récente : en priorité celle "en_cours", sinon la dernière
         const seances = coursFull.seances;
         const enCours = seances.find((s) => s.statut === "en_cours");
         const seance = enCours ?? seances[seances.length - 1];
@@ -424,7 +410,7 @@ export default function EspaceEleve() {
     []
   );
 
-  // ---- Polling du flux de questions + liste des eleves (pour les noms) ----
+  //flux de questions + liste des élèves (pour les noms)
   useEffect(() => {
     if (!seanceId) return;
 
@@ -458,7 +444,7 @@ export default function EspaceEleve() {
     }
   };
 
-  // ------- Phase 1 : eleve non connecte -------
+  //Non connexion d'un élève
   if (!studentName || !seanceId) {
     return (
       <EcranConnexion
@@ -472,7 +458,7 @@ export default function EspaceEleve() {
     );
   }
 
-  // ------- Phase 2 : interface de cours -------
+  //Interface de cours
   return (
     <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_2fr] gap-6 p-6">

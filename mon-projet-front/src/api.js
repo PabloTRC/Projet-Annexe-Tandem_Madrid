@@ -1,6 +1,4 @@
-// Client minimal pour l'API backend (FastAPI). Toutes les fonctions
-// renvoient une Promise et lancent une Error avec un message lisible en
-// cas d'echec (statut HTTP >= 400).
+
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -26,12 +24,12 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  // ---- Professeurs ----
+  //Professeurs
   getProfesseurs: () => request("/professeurs"),
   createProfesseur: (nom, email) =>
     request("/professeurs", { method: "POST", body: JSON.stringify({ nom, email }) }),
 
-  // ---- Cours ----
+  //Cours
   getCours: () => request("/cours"),
   getCoursFull: (coursId) => request(`/cours/${coursId}/full`),
   createCours: (professeurId, titre, description) =>
@@ -40,15 +38,15 @@ export const api = {
       body: JSON.stringify({ professeur_id: professeurId, titre, description: description || null }),
     }),
 
-  // ---- Seances ----
+  //Séances
   getSeanceFull: (seanceId) => request(`/seances/${seanceId}/full`),
 
-  // ---- Eleves ----
+  //Elèves
   getEleves: () => request("/eleves"),
   createEleve: (nom) =>
     request("/eleves", { method: "POST", body: JSON.stringify({ nom }) }),
 
-  // ---- Questions ----
+  //Questions
   getQuestions: (seanceId) => request(`/seances/${seanceId}/questions`),
   createQuestion: (seanceId, texte, eleveId) =>
     request(`/seances/${seanceId}/questions`, {
@@ -56,13 +54,13 @@ export const api = {
       body: JSON.stringify({ texte, eleve_id: eleveId ?? null }),
     }),
 
-  // ---- Syntheses (generation via LLM) ----
+  //Synthèses (generation via LLM)
   genererSyntheseQuestions: (seanceId) =>
     request(`/seances/${seanceId}/synthese-questions/generer`, { method: "POST" }),
   genererSyntheseCours: (seanceId) =>
     request(`/seances/${seanceId}/synthese-cours/generer`, { method: "POST" }),
 
-  // ---- Contenus (documents deposes par le professeur) ----
+  //Contenus (documents deposes par le professeur)
   getContenus: (seanceId) => request(`/seances/${seanceId}/contenus`),
   uploadContenu: async (seanceId, file, type = "fichier") => {
     const formData = new FormData();
