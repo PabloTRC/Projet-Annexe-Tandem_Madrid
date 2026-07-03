@@ -10,6 +10,7 @@
   ```
 - `frontend` : `cd frontend && npm install`
 - Ollama installé avec le modèle `llama3.2:1b` (`ollama pull llama3.2:1b`)
+- 3 fichiers `.env` à créer depuis leur `.env.example` : `.env` (racine, pour docker-compose), `backend/.env` (DATABASE_URL/OLLAMA/FRONTEND_ORIGINS, partagé par l'app FastAPI **et** Alembic — pas de `.env` séparé dans `backend/db/`), `frontend/.env` (VITE_API_URL)
 
 ## Lancer la démo
 
