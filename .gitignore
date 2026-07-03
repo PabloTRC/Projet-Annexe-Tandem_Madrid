@@ -27,3 +27,22 @@ dist-ssr
 __pycache__/
 *.pyc
 .claude/
+
+# Secrets / config locale (garder uniquement les .env.example)
+.env
+*.env
+!*.env.example
+
+# Environnements Python
+venv/
+.venv/
+*.mypy_cache/
+.mypy_cache/
+
+# Fichiers deposes en local pendant les tests manuels (uploads de demo)
+backend/uploads/*
+!backend/uploads/cours_example.pdf
+backend/db/uploads/
+
+# Logs applicatifs
+backend.log

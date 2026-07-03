@@ -74,12 +74,17 @@ docker compose up -d postgres
 ### 4. Backend (Python / FastAPI)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate      # Linux/Mac
-# .venv\Scripts\activate       # Windows
+cd backend
+python -m venv venv
+source venv/bin/activate      # Linux/Mac
+# venv\Scripts\activate       # Windows
 
 pip install -r requirements.txt
 ```
+
+> Les migrations Alembic vivent dans un venv separe (`backend/db/venv`, avec
+> son propre `requirements.txt`). Voir `docs/LANCEMENT.md` pour le detail des
+> deux venvs et le script `scripts/run_demo.sh` qui automatise tout.
 
 ### 5. Frontend (React / Vite)
 
@@ -147,23 +152,22 @@ const CODE_ACCES_PROF = "TON_NOUVEAU_CODE";
 ```
 Projet-Annexe-Tandem_Madrid/
 ├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── models/          # modèles SQLAlchemy
-│   │   ├── routers/         # endpoints REST par domaine
-│   │   ├── services/        # logique métier
-│   │   └── llm/             # client Ollama, prompts
+│   ├── app/                 # API FastAPI (main.py, models.py, schemas.py, ws_manager.py, llm.py)
+│   ├── db/                  # migrations Alembic (versions/) + script de seed (reset_demo.py)
+│   ├── uploads/              # fichiers deposes par le professeur
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx          # racine + sidebar + espace prof
-│   │   ├── EspaceEleve.jsx  # écran de connexion élève + interface de cours
+│   │   ├── App.jsx           # racine + routage espace eleve / professeur
+│   │   ├── EspaceEleve.jsx   # ecran de connexion eleve + interface de cours
+│   │   ├── EspaceProfesseur.jsx
 │   │   └── main.jsx
 │   ├── package.json
 │   └── vite.config.js
+├── docs/                    # PROJECT.md, LANCEMENT.md, mvp_backend.md
+├── scripts/
+│   └── run_demo.sh          # reset DB + seed + lance backend/frontend en un coup
 ├── docker-compose.yml
-├── .env.example
-├── PROJECT.md               # démarche et choix techniques
 └── README.md
 ```
 
