@@ -164,10 +164,11 @@ Projet-Annexe-Tandem_Madrid/
 │   │   └── main.jsx
 │   ├── package.json
 │   └── vite.config.js
-├── docs/                    # PROJECT.md, LANCEMENT.md, mvp_backend.md
+├── docs/                    # LANCEMENT.md, mvp_backend.md
 ├── scripts/
 │   └── run_demo.sh          # reset DB + seed + lance backend/frontend en un coup
 ├── docker-compose.yml
+├── PROJECT.md               # démarche et choix techniques
 └── README.md
 ```
 
