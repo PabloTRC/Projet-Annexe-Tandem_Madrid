@@ -1,14 +1,17 @@
+import json
 import os
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from . import llm, models, schemas
-from .database import get_db
+from .database import SessionLocal, get_db
+from .ws_manager import manager
 
 # Dossier ou sont stockés les fichiers uploades (PDF, etc.). Jamais exposé en accès statique direct : tout téléchargement passe par l'endpoint dedié ci-dessous, qui vérifie d'abord que le contenu appartient bien a la séance.
 UPLOAD_DIR = os.path.abspath(os.environ.get("UPLOAD_DIR", "uploads"))
@@ -130,6 +133,65 @@ def get_cours_full(cours_id: int, db: Session = Depends(get_db)):
     return cours
 
 
+# Inscriptions (gestion des eleves d'une classe)
+
+
+@app.get("/cours/{cours_id}/eleves", response_model=list[schemas.EleveRead])
+def list_eleves_inscrits(cours_id: int, db: Session = Depends(get_db)):
+    """Liste des eleves inscrits dans ce cours (la classe)."""
+    get_or_404(db, models.Cours, cours_id, "Cours")
+    return (
+        db.query(models.Eleve)
+        .join(models.Inscription, models.Inscription.eleve_id == models.Eleve.id)
+        .filter(models.Inscription.cours_id == cours_id)
+        .order_by(models.Eleve.nom)
+        .all()
+    )
+
+
+@app.post("/cours/{cours_id}/eleves", response_model=schemas.EleveRead, status_code=201)
+def inscrire_eleve(cours_id: int, payload: schemas.InscriptionCreate, db: Session = Depends(get_db)):
+    """Inscrit un eleve existant dans ce cours (la classe)."""
+    get_or_404(db, models.Cours, cours_id, "Cours")
+    eleve = get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
+
+    deja_inscrit = (
+        db.query(models.Inscription)
+        .filter(
+            models.Inscription.cours_id == cours_id,
+            models.Inscription.eleve_id == payload.eleve_id,
+        )
+        .first()
+    )
+    if deja_inscrit is not None:
+        raise HTTPException(status_code=409, detail="Cet élève est déjà inscrit dans ce cours.")
+
+    inscription = models.Inscription(cours_id=cours_id, eleve_id=payload.eleve_id)
+    db.add(inscription)
+    db.commit()
+    return eleve
+
+
+@app.delete("/cours/{cours_id}/eleves/{eleve_id}", status_code=204)
+def desinscrire_eleve(cours_id: int, eleve_id: int, db: Session = Depends(get_db)):
+    """Désinscrit un eleve de ce cours (la classe). L'eleve et ses questions
+    passees restent en base : seule l'inscription est supprimee."""
+    get_or_404(db, models.Cours, cours_id, "Cours")
+    inscription = (
+        db.query(models.Inscription)
+        .filter(
+            models.Inscription.cours_id == cours_id,
+            models.Inscription.eleve_id == eleve_id,
+        )
+        .first()
+    )
+    if inscription is None:
+        raise HTTPException(status_code=404, detail="Cet élève n'est pas inscrit dans ce cours.")
+    db.delete(inscription)
+    db.commit()
+    return None
+
+
 
 # Séances
 
@@ -177,16 +239,107 @@ def get_seance_full(seance_id: int, db: Session = Depends(get_db)):
     return seance
 
 
+# WebSocket "en direct" par seance
+#
+# Un seul salon par seance : questions, documents, syntheses et presence sont
+# tous diffuses sur ce meme canal, avec un champ "type" pour distinguer les
+# evenements. Cote client, une seule connexion WS remplace tout le polling.
+#
+# `eleve_id` en query param identifie une connexion "eleve" (necessaire pour
+# la presence) ; absent (ou None) pour une connexion "professeur".
+
+
+@app.websocket("/ws/seances/{seance_id}")
+async def ws_seance(websocket: WebSocket, seance_id: int, eleve_id: int | None = None):
+    db = SessionLocal()
+    try:
+        seance = db.get(models.Seance, seance_id)
+        if seance is None:
+            await websocket.close(code=4404)
+            return
+
+        eleve_nom = None
+        if eleve_id is not None:
+            eleve = db.get(models.Eleve, eleve_id)
+            if eleve is not None:
+                eleve_nom = eleve.nom
+
+        await manager.connect(seance_id, websocket, eleve_id)
+
+        try:
+            # Snapshot de presence envoye uniquement au client qui vient de se
+            # connecter (pas un broadcast) : lui permet d'afficher tout de
+            # suite qui est deja en ligne sans attendre un evenement.
+            ids_en_ligne = manager.eleves_en_ligne(seance_id)
+            eleves_en_ligne = []
+            if ids_en_ligne:
+                eleves = db.query(models.Eleve).filter(models.Eleve.id.in_(ids_en_ligne)).all()
+                eleves_en_ligne = [{"id": e.id, "nom": e.nom} for e in eleves]
+            await websocket.send_text(
+                json.dumps({"type": "presence_snapshot", "eleves": eleves_en_ligne}, default=str)
+            )
+
+            if eleve_id is not None:
+                await manager.broadcast(
+                    seance_id,
+                    {"type": "presence_join", "eleve": {"id": eleve_id, "nom": eleve_nom}},
+                )
+
+            # Canal unidirectionnel serveur -> client pour l'instant : on ne
+            # traite pas de messages entrants, mais receive_text() est
+            # necessaire pour detecter la deconnexion du client.
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            manager.disconnect(seance_id, websocket)
+            if eleve_id is not None:
+                await manager.broadcast(seance_id, {"type": "presence_leave", "eleve_id": eleve_id})
+    finally:
+        db.close()
+
+
+# Presence (eleves "en ligne" sur une seance)
+#
+# La source de verite est desormais le WebSocket : etre connecte sur
+# /ws/seances/{id} = etre en ligne (voir plus haut, presence_join /
+# presence_leave / presence_snapshot). Il n'y a donc plus de heartbeat REST
+# ni de table `presence` interrogee ici - l'ancien mecanisme (table
+# `presence`, migration 0004) reste en base par convention (on ne reecrit
+# jamais une migration passee) mais n'est plus utilise.
+#
+# Ce endpoint GET est garde comme filet de securite HTTP : utile pour un
+# affichage initial avant que la connexion WebSocket ne soit etablie, ou si
+# un client ne supporte pas les WebSocket. Il lit directement l'etat en
+# memoire du ConnectionManager, pas la base.
+
+
+@app.get("/seances/{seance_id}/presence", response_model=list[schemas.EleveEnLigne])
+def list_eleves_en_ligne(seance_id: int, db: Session = Depends(get_db)):
+    get_or_404(db, models.Seance, seance_id, "Seance")
+    ids_en_ligne = manager.eleves_en_ligne(seance_id)
+    if not ids_en_ligne:
+        return []
+    now = datetime.now(timezone.utc)
+    eleves = db.query(models.Eleve).filter(models.Eleve.id.in_(ids_en_ligne)).order_by(models.Eleve.nom).all()
+    return [schemas.EleveEnLigne(id=eleve.id, nom=eleve.nom, derniere_activite=now) for eleve in eleves]
+
+
 # Contenu
 
 
 @app.post("/seances/{seance_id}/contenus", response_model=schemas.ContenuRead, status_code=201)
-def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session = Depends(get_db)):
+async def create_contenu(seance_id: int, payload: schemas.ContenuCreate, db: Session = Depends(get_db)):
     get_or_404(db, models.Seance, seance_id, "Seance")
     contenu = models.Contenu(seance_id=seance_id, **payload.model_dump())
     db.add(contenu)
     db.commit()
     db.refresh(contenu)
+
+    contenu_data = schemas.ContenuRead.model_validate(contenu).model_dump()
+    await manager.broadcast(seance_id, {"type": "contenu_created", "data": contenu_data})
+
     return contenu
 
 
@@ -248,6 +401,10 @@ async def upload_contenu(
     db.add(contenu)
     db.commit()
     db.refresh(contenu)
+
+    contenu_data = schemas.ContenuRead.model_validate(contenu).model_dump()
+    await manager.broadcast(seance_id, {"type": "contenu_created", "data": contenu_data})
+
     return contenu
 
 
@@ -309,7 +466,7 @@ def download_contenu(seance_id: int, contenu_id: int, db: Session = Depends(get_
 
 
 @app.post("/seances/{seance_id}/questions", response_model=schemas.QuestionRead, status_code=201)
-def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session = Depends(get_db)):
+async def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session = Depends(get_db)):
     get_or_404(db, models.Seance, seance_id, "Seance")
     if payload.eleve_id is not None:
         get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
@@ -326,6 +483,13 @@ def create_question(seance_id: int, payload: schemas.QuestionCreate, db: Session
     db.add(question)
     db.commit()
     db.refresh(question)
+
+    # Diffusion en direct : tous les clients connectes au WS de cette seance
+    # (professeur + autres eleves) recoivent la nouvelle question sans avoir
+    # besoin de re-interroger l'API.
+    question_data = schemas.QuestionRead.model_validate(question).model_dump()
+    await manager.broadcast(seance_id, {"type": "question_created", "data": question_data})
+
     return question
 
 
@@ -341,13 +505,17 @@ def list_questions(seance_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/questions/{question_id}", response_model=schemas.QuestionRead)
-def update_question(question_id: int, payload: schemas.QuestionUpdate, db: Session = Depends(get_db)):
+async def update_question(question_id: int, payload: schemas.QuestionUpdate, db: Session = Depends(get_db)):
     """Utilisé par le pipeline LLM pour remplir `categorie` a posteriori."""
     question = get_or_404(db, models.Question, question_id, "Question")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(question, field, value)
     db.commit()
     db.refresh(question)
+
+    question_data = schemas.QuestionRead.model_validate(question).model_dump()
+    await manager.broadcast(question.seance_id, {"type": "question_updated", "data": question_data})
+
     return question
 
 
@@ -360,7 +528,7 @@ def update_question(question_id: int, payload: schemas.QuestionUpdate, db: Sessi
     response_model=schemas.SyntheseQuestionsRead,
     status_code=201,
 )
-def create_synthese_questions(
+async def create_synthese_questions(
     seance_id: int, payload: schemas.SyntheseQuestionsCreate, db: Session = Depends(get_db)
 ):
     get_or_404(db, models.Seance, seance_id, "Seance")
@@ -368,6 +536,10 @@ def create_synthese_questions(
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    synthese_data = schemas.SyntheseQuestionsRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_questions", "data": synthese_data})
+
     return synthese
 
 
@@ -390,11 +562,12 @@ def list_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     response_model=schemas.SyntheseQuestionsRead,
     status_code=201,
 )
-def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
+async def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     """
     Declenche Ollama pour generer la synthese des questions de la seance
     (a partir de toutes les questions deja posees, avec leur categorie) et
-    l'enregistre. Utilise pour le bouton "generer la synthese" cote prof.
+    l'enregistre. Utilise pour le bouton "generer la synthese" cote prof
+    (et pour la generation automatique toutes les 20 minutes).
     """
     get_or_404(db, models.Seance, seance_id, "Seance")
     questions = (
@@ -414,6 +587,14 @@ def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    # Diffuse la synthese a TOUS les clients connectes (pas seulement celui
+    # qui a declenche la generation) : si le prof a plusieurs onglets
+    # ouverts, ou si la generation vient du timer automatique de 20 min,
+    # tout le monde recoit le resultat en direct.
+    synthese_data = schemas.SyntheseQuestionsRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_questions", "data": synthese_data})
+
     return synthese
 
 
@@ -422,7 +603,7 @@ def generer_synthese_questions(seance_id: int, db: Session = Depends(get_db)):
     response_model=schemas.SyntheseCoursRead,
     status_code=201,
 )
-def create_synthese_cours(
+async def create_synthese_cours(
     seance_id: int, payload: schemas.SyntheseCoursCreate, db: Session = Depends(get_db)
 ):
     get_or_404(db, models.Seance, seance_id, "Seance")
@@ -430,6 +611,10 @@ def create_synthese_cours(
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    synthese_data = schemas.SyntheseCoursRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_cours", "data": synthese_data})
+
     return synthese
 
 
@@ -438,7 +623,7 @@ def create_synthese_cours(
     response_model=schemas.SyntheseCoursRead,
     status_code=201,
 )
-def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
+async def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
     """
     Declenche Ollama pour generer la synthese du contenu de la seance
     (a partir de tous les contenus deja publies) et l'enregistre.
@@ -461,6 +646,10 @@ def generer_synthese_cours(seance_id: int, db: Session = Depends(get_db)):
     db.add(synthese)
     db.commit()
     db.refresh(synthese)
+
+    synthese_data = schemas.SyntheseCoursRead.model_validate(synthese).model_dump()
+    await manager.broadcast(seance_id, {"type": "synthese_cours", "data": synthese_data})
+
     return synthese
 
 

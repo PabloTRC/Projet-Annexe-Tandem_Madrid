@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import api from "./api";
+import { connectSeanceSocket } from "./ws";
 
 function fileLabel(contenu) {
   return contenu.donnees?.file_name || contenu.donnees?.titre || `Document #${contenu.id}`;
@@ -18,21 +19,12 @@ export default function DocumentsCours({ seanceId, cours, onBack }) {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
   const fileInputRef = useRef(null);
 
-  async function fetchDocuments() {
-    setLoading(true);
-    setError("");
-    try {
-      const docs = await api.getContenus(seanceId);
-      setDocuments(docs);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
+  // ---- Chargement initial + abonnement WS : un document deposé par un
+  // autre onglet/appareil (prof ou élève, ex. via une autre séance ouverte
+  // simultanément) apparaît ici sans avoir à recharger la page.
   useEffect(() => {
     if (!seanceId) return;
     let cancelled = false;
@@ -48,8 +40,20 @@ export default function DocumentsCours({ seanceId, cours, onBack }) {
       }
     })();
 
+    const socket = connectSeanceSocket(seanceId, {
+      onOpen: () => setWsConnected(true),
+      onClose: () => setWsConnected(false),
+      onMessage: (message) => {
+        if (message.type === "contenu_created") {
+          const d = message.data;
+          setDocuments((prev) => (prev.some((x) => x.id === d.id) ? prev : [...prev, d]));
+        }
+      },
+    });
+
     return () => {
       cancelled = true;
+      socket.close();
     };
   }, [seanceId]);
 
@@ -62,7 +66,8 @@ export default function DocumentsCours({ seanceId, cours, onBack }) {
       for (const file of files) {
         await api.uploadContenu(seanceId, file, "fichier");
       }
-      await fetchDocuments();
+      // Pas besoin de refetch : le broadcast WS "contenu_created" met déjà
+      // la liste à jour (y compris pour ce client, qui reçoit aussi l'événement).
     } catch (err) {
       setError(err.message || "Erreur lors de l'envoi du fichier.");
     } finally {
@@ -79,6 +84,20 @@ export default function DocumentsCours({ seanceId, cours, onBack }) {
             <p className="mt-1 text-sm text-slate-500">
               {cours?.titre} — dépose ici les fichiers que tes élèves pourront télécharger.
             </p>
+            <span
+              className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
+                wsConnected
+                  ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                  : "bg-amber-50 border-amber-100 text-amber-700"
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  wsConnected ? "animate-pulse bg-emerald-500" : "bg-amber-500"
+                }`}
+              />
+              {wsConnected ? "Connecté en direct" : "Reconnexion en cours…"}
+            </span>
           </div>
           <button
             onClick={onBack}
