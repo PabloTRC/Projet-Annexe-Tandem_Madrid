@@ -1,179 +1,185 @@
 # Projet-Annexe-Tandem_Madrid
-#43
 
- Assistant de Cours — Application compagnon pour enseignants
+# El Tandem Educacion
 
-## 1. Objectif
+> Application compagnon pour enseignants et élèves : les élèves peuvent poser leurs questions en temps réel pendant un cours et le prof leur renvoie une synthèse par IA ce qui permet un meilleur suivi par l'enseignant du niveau de sa classe.
 
-Application web compagnon pour les enseignants, permettant :
-- au **professeur** de déposer des contenus pédagogiques et de piloter une séance en direct (questions des élèves, synthèses générées par LLM) ;
-- à l'**élève** de suivre le cours et de poser des questions en temps réel.
+## Fonctionnalités
 
-Le cœur du produit est la boucle **question élève → synthèse LLM → réponse/suivi professeur**, appliquée à l'échelle d'une séance puis d'un cours complet.
+- **Espace élève** : rejoindre une classe avec un pseudo + choix parmi 9 matières (Mathématiques, Anglais, Français, Histoire, Informatique, Physique, Latin, Espagnol, Chinois).
+- **Espace professeur** protégé par code d'accès "TANDEM2025": tableau de bord des questions reçues, filtrés (toutes / non lues / répondues), épinglage des questions prioritaires.
+- **Fil en temps réel** des questions envoyées par les élèves (via WebSocket).
+- **Catégorisation** des questions (Général / Technique / Exercice) pour un tri rapide plus visuel.
+- **Synthèse LLM**(Ollama) toutes les 20mn, prévue pour regrouper les questions similaires, évite au prof de répondre plusieurs fois à la même chose.
 
-## 2. Périmètre fonctionnel
 
-### 2.1 MVP
+## Stack
 
-**Frontend professeur**
-- Créer une séance et y déposer des contenus pédagogiques (texte, fichiers, liens).
-- Visualiser en direct les questions posées par les élèves pendant la séance.
-- Déclencher, via un bouton, une synthèse LLM qui regroupe les questions similaires (même réponse attendue) pour éviter les doublons.
+| catégorie       | outil                              |
+| --------------- | --------------------------------------- |
+| Frontend        | React + Vite + Tailwind CSS             |
+| Backend         | Python 3.14 + FastAPI                   |
+| Temps réel      | WebSocket (Socket.io)                   |
+| Base de données | PostgreSQL 16                           |
+| LLM             | Ollama (local, modèle llama3 / mistral) |
+| Conteneurisation| Docker Compose                          |
 
-**Frontend élève**
-- Rejoindre une séance et suivre le contenu du cours.
-- Poser des questions à tout moment pendant la séance.
 
-**Backend**
-- API REST exposant : séances, contenus, questions, synthèses.
-- Persistance PostgreSQL.
-- Appel au LLM (Ollama, local) pour la synthèse des questions.
+## Prérequis
 
-### 2.2 Extensions (post-MVP)
+Pour faire fonctionner le code, il faut avoir :
 
-| Extension | Description |
-|---|---|
-| **Synthèse des questions** | Regroupement par le LLM des questions équivalentes posées pendant une séance, pour éviter au professeur de répondre plusieurs fois à la même chose. |
-| **Suivi des élèves** | Chaque question est associée à l'identifiant de l'élève qui l'a posée. Le professeur peut consulter l'historique par élève. |
-| **Classification des questions par le LLM** | Le LLM catégorise chaque question : élémentaire / approfondie / porte sur un cours antérieur. |
-| **Détection de difficultés** | À partir de la classification, le système signale les élèves qui semblent en difficulté (questions récurrentes sur des notions déjà vues) versus ceux qui progressent bien. |
-| **Synthèse de fin de cours** | Génération par LLM d'un résumé de séance, mis à disposition des élèves après le cours. |
+- **Node.js** ≥ 18 et **npm**
+- **Python** ≥ 3.14
+- **Docker** + **Docker Compose**
+- **Ollama** installé avec un modèle téléchargé : `ollama pull llama3`
 
-Ces extensions dépendent toutes du MVP (contenu + questions + identifiant élève) et peuvent être développées indépendamment les unes des autres une fois le MVP stable.
 
-## 3. Architecture
 
-```
-┌─────────────────────┐      ┌─────────────────────┐
-│  Frontend Professeur │      │   Frontend Élève     │
-│  (HTML/CSS/JS)        │      │   (HTML/CSS/JS)       │
-└──────────┬───────────┘      └──────────┬───────────┘
-           │            REST / WebSocket             │
-           └───────────────────┬──────────────────────┘
-                                │
-                       ┌────────▼────────┐
-                       │   Backend API     │
-                       │   (Python)         │
-                       └───┬──────────┬────┘
-                            │          │
-                  ┌─────────▼──┐   ┌───▼─────────┐
-                  │ PostgreSQL │   │ Ollama (LLM) │
-                  └────────────┘   └──────────────┘
+## Installation
+
+### 1. Cloner le dépôt
+
+```bash
+git clone <url-du-repo>
+cd Projet-Annexe-Tandem_Madrid
 ```
 
-- Les questions en direct nécessitent une mise à jour en temps réel côté professeur : prévoir WebSocket 
-- Ollama tourne en local/serveur dédié ; le backend l'appelle via son API HTTP.
+### 2. Configurer les variables d'environnement
 
-## 4. Stack technique
+Copie le fichier d'exemple et adapte-le :
 
-| Couche | Techno |
-|---|---|
-| Langage principal | Python |
-| LLM | Ollama (modèle à définir, ex. llama3 / mistral) |
-| Frontend | HTML, CSS, JavaScript (vanilla dans un premier temps) |
-| Style (phase 2) | Tailwind CSS |
-| Backend | Python (framework FastAPI) |
-| Base de données | PostgreSQL |
-
-
-## 5. Modèle de données (esquisse)
-
-- `professeur (id, nom, email, ...)`
-- `eleve (id, nom, identifiant_anonyme, ...)`
-- `cours (id, professeur_id, titre, description)`
-- `seance (id, cours_id, date, statut)`
-- `contenu (id, seance_id, type, donnees)`
-- `question (id, seance_id, eleve_id, texte, horodatage, categorie)` — `categorie` = élémentaire / approfondie / cours antérieur, remplie par le LLM
-- `synthese_questions (id, seance_id, texte_genere, horodatage)`
-- `synthese_cours (id, seance_id, texte_genere, horodatage)`
-
-
-## 6. Endpoints API (esquisse)
-
-```
-POST   /api/cours                        Créer un cours
-POST   /api/cours/{id}/seances            Créer une séance
-POST   /api/seances/{id}/contenus         Déposer un contenu pédagogique
-GET    /api/seances/{id}                  Détail séance + contenus
-
-POST   /api/seances/{id}/questions        Élève pose une question
-GET    /api/seances/{id}/questions        Professeur liste les questions
-
-POST   /api/seances/{id}/synthese-questions   Déclenche la synthèse LLM des questions
-GET    /api/seances/{id}/synthese-cours       Récupère la synthèse de fin de cours (élève)
-POST   /api/seances/{id}/synthese-cours       Génère la synthèse de fin de cours (professeur)
-
-GET    /api/eleves/{id}/suivi             Historique des questions/catégories d'un élève
+```bash
+cp .env.example .env
 ```
 
-## 7. Points à trancher avant / pendant le développement
+Remplis au minimum :
 
-L'IA assistante doit signaler ces choix plutôt que les prendre silencieusement :
-
-1. **Temps réel** : WebSocket (mise à jour instantanée des questions côté professeur)
-2. **Authentification** : comptes professeur/élève réels, ou lien de séance + pseudonyme pour les élèves ?
-3. **Modèle Ollama** : quel modèle par défaut, et fallback si le modèle n'est pas installé localement ?
-4. **Anonymat élève** : le "suivi des élèves" implique de conserver un identifiant nominatif ou pseudonymisé — à clarifier pour la conformité RGPD si déploiement en établissement scolaire.
-
-## 8. Structure du dépôt
-
-```
-assistant-de-cours/
-├── backend/
-│   ├── app/
-│   │   ├── main.py
-│   │   ├── models/          # modèles PostgreSQL (SQLAlchemy ou équivalent)
-│   │   ├── routers/         # endpoints REST par domaine (cours, seances, questions...)
-│   │   ├── services/        # logique métier, appels LLM
-│   │   └── llm/             # client Ollama, prompts de synthèse/classification
-│   ├── requirements.txt
-│   └── alembic/ (ou migrations équivalentes)
-├── frontend-professeur/
-│   ├── index.html
-│   ├── css/
-│   └── js/
-├── frontend-eleve/
-│   ├── index.html
-│   ├── css/
-│   └── js/
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## 9. Déploiement
-
-### 9.1 Prérequis
-- Python 3.11+
-- PostgreSQL 14+
-- Ollama installé avec au moins un modèle téléchargé (`ollama pull <modele>`)
-
-### 9.2 Variables d'environnement (`.env`)
-
-```
-DATABASE_URL=postgresql://user:password@localhost:5432/assistant_cours
+```env
+POSTGRES_USER=tandem
+POSTGRES_PASSWORD=un-mot-de-passe-solide
+POSTGRES_DB=tandem_db
+DATABASE_URL=postgresql://tandem:un-mot-de-passe-solide@localhost:5433/tandem_db
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama3
 APP_SECRET_KEY=change-me
-ENV=production
 ```
 
-### 9.3 Environnement de développement local
+### 3. Base de données (Docker)
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r backend/requirements.txt
-uvicorn app.main:app --reload   # backend
-# ouvrir frontend-professeur/index.html et frontend-eleve/index.html dans le navigateur
+docker compose up -d postgres
 ```
 
-## 10. Feuille de route
+### 4. Backend (Python / FastAPI)
 
-| Phase | Contenu |
-|---|---|
-| Phase 1 | MVP : dépôt de contenu, questions élèves, synthèse LLM des questions |
-| Phase 2 | Suivi élève + classification des questions + détection de difficultés |
-| Phase 3 | Synthèse de fin de cours |
-| Phase 4 (esthétique) | Intégration Tailwind CSS sur les deux frontends |
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Linux/Mac
+# .venv\Scripts\activate       # Windows
+
+pip install -r requirements.txt
+```
+
+### 5. Frontend (React / Vite)
+
+```bash
+cd frontend
+npm install
+```
+
+## Lancer l'application
+
+Ouvre **3 terminaux** :
+
+**Terminal 1 — Base de données**
+```bash
+docker compose up postgres
+```
+
+**Terminal 2 — Backend**
+```bash
+source .venv/bin/activate
+uvicorn app.main:app --reload
+```
+API disponible sur → http://localhost:8000
+
+**Terminal 3 — Frontend**
+```bash
+cd frontend
+npm run dev
+```
+Interface disponible sur → http://localhost:5173
+
+## Guide d'utilisation
+
+### Côté élève
+
+1. Cliquer sur l'onglet **Élève** dans la barre latérale rose.
+2. Saisir son **nom**.
+3. Choisir sa **matière** dans la grille (Mathématiques, Anglais, Français…).
+4. Cliquer sur **Rejoindre la classe virtuelle**.
+5. Poser des questions via le formulaire de gauche (avec catégorie : Général / Technique / Exercice).
+6. Suivre le fil des questions de la classe à droite en temps réel.
+
+### Côté professeur
+
+1. Cliquer sur l'onglet **Professeur** dans la barre latérale rose.
+2. Saisir le **code d'accès** (`TANDEM2025`).
+3. Le tableau de bord affiche toutes les questions reçues.
+4. Actions disponibles :
+   - **Épingler** une question prioritaire (icône en haut à droite de chaque carte): ensuite elle s'affiche dans le panneau de droite.
+   - **Marquer comme lue** pour la sortir de l'onglet *Non lues*.
+   - **Traitée** pour archiver une question épinglée.
+5. Filtres rapides en haut : *Toutes* / *Non lues* / *Répondues*.
+6. Bouton **Déconnexion prof** dans la barre latérale pour terminer la session.
+
+### Changer le code d'accès prof
+
+Ouvrir `frontend/src/App.jsx` et modifier la constante en haut du fichier :
+
+```js
+const CODE_ACCES_PROF = "TON_NOUVEAU_CODE";
+```
+
+### Structure du dépôt
+
+```
+Projet-Annexe-Tandem_Madrid/
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── models/          # modèles SQLAlchemy
+│   │   ├── routers/         # endpoints REST par domaine
+│   │   ├── services/        # logique métier
+│   │   └── llm/             # client Ollama, prompts
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx          # racine + sidebar + espace prof
+│   │   ├── EspaceEleve.jsx  # écran de connexion élève + interface de cours
+│   │   └── main.jsx
+│   ├── package.json
+│   └── vite.config.js
+├── docker-compose.yml
+├── .env.example
+├── PROJECT.md               # démarche et choix techniques
+└── README.md
+```
+
+## Équipe
+
+Développé par :
+
+- **Keanu Toofa**
+- **Amaury Viaud**
+- **Pablo Thoumyre**
+- **Amandine de Rocca**
+
+
+## Licence
+
+Voir le fichier [LICENSE](./LICENSE) à la racine du dépôt.
+
+
 
