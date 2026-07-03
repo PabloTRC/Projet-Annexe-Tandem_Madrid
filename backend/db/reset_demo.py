@@ -24,12 +24,14 @@ import json
 import os
 import shutil
 import uuid
+from pathlib import Path
 
 import psycopg2
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # backend/.env (partage avec l'app FastAPI et Alembic, pas de copie locale).
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 except ImportError:
     pass
 

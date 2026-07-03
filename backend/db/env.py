@@ -1,13 +1,16 @@
 import os
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-# Charge .env si python-dotenv est installé 
+# Charge backend/.env (partagé avec l'app FastAPI, pas de .env local a
+# backend/db/ : un seul DATABASE_URL a maintenir, pas deux copies qui
+# peuvent diverger).
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 except ImportError:
     pass
 
