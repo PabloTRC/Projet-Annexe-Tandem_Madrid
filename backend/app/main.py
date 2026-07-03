@@ -1,14 +1,17 @@
+import json
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from . import llm, models, schemas
-from .database import get_db
+from .database import SessionLocal, get_db
+from .ws_manager import manager
 
 # Dossier ou sont stockés les fichiers uploades (PDF, etc.). Jamais exposé en accès statique direct : tout téléchargement passe par l'endpoint dedié ci-dessous, qui vérifie d'abord que le contenu appartient bien a la séance.
 UPLOAD_DIR = os.path.abspath(os.environ.get("UPLOAD_DIR", "uploads"))
@@ -130,6 +133,65 @@ def get_cours_full(cours_id: int, db: Session = Depends(get_db)):
     return cours
 
 
+# Inscriptions (gestion des eleves d'une classe)
+
+
+@app.get("/cours/{cours_id}/eleves", response_model=list[schemas.EleveRead])
+def list_eleves_inscrits(cours_id: int, db: Session = Depends(get_db)):
+    """Liste des eleves inscrits dans ce cours (la classe)."""
+    get_or_404(db, models.Cours, cours_id, "Cours")
+    return (
+        db.query(models.Eleve)
+        .join(models.Inscription, models.Inscription.eleve_id == models.Eleve.id)
+        .filter(models.Inscription.cours_id == cours_id)
+        .order_by(models.Eleve.nom)
+        .all()
+    )
+
+
+@app.post("/cours/{cours_id}/eleves", response_model=schemas.EleveRead, status_code=201)
+def inscrire_eleve(cours_id: int, payload: schemas.InscriptionCreate, db: Session = Depends(get_db)):
+    """Inscrit un eleve existant dans ce cours (la classe)."""
+    get_or_404(db, models.Cours, cours_id, "Cours")
+    eleve = get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
+
+    deja_inscrit = (
+        db.query(models.Inscription)
+        .filter(
+            models.Inscription.cours_id == cours_id,
+            models.Inscription.eleve_id == payload.eleve_id,
+        )
+        .first()
+    )
+    if deja_inscrit is not None:
+        raise HTTPException(status_code=409, detail="Cet élève est déjà inscrit dans ce cours.")
+
+    inscription = models.Inscription(cours_id=cours_id, eleve_id=payload.eleve_id)
+    db.add(inscription)
+    db.commit()
+    return eleve
+
+
+@app.delete("/cours/{cours_id}/eleves/{eleve_id}", status_code=204)
+def desinscrire_eleve(cours_id: int, eleve_id: int, db: Session = Depends(get_db)):
+    """Désinscrit un eleve de ce cours (la classe). L'eleve et ses questions
+    passees restent en base : seule l'inscription est supprimee."""
+    get_or_404(db, models.Cours, cours_id, "Cours")
+    inscription = (
+        db.query(models.Inscription)
+        .filter(
+            models.Inscription.cours_id == cours_id,
+            models.Inscription.eleve_id == eleve_id,
+        )
+        .first()
+    )
+    if inscription is None:
+        raise HTTPException(status_code=404, detail="Cet élève n'est pas inscrit dans ce cours.")
+    db.delete(inscription)
+    db.commit()
+    return None
+
+
 
 # Séances
 
@@ -175,6 +237,126 @@ def get_seance_full(seance_id: int, db: Session = Depends(get_db)):
     if seance is None:
         raise HTTPException(status_code=404, detail=f"Seance {seance_id} introuvable")
     return seance
+
+
+# WebSocket "en direct" par seance
+#
+# Un seul salon par seance : questions, documents, syntheses et presence sont
+# tous diffuses sur ce meme canal, avec un champ "type" pour distinguer les
+# evenements. Cote client, une seule connexion WS remplace tout le polling.
+#
+# `eleve_id` en query param identifie une connexion "eleve" (necessaire pour
+# la presence) ; absent (ou None) pour une connexion "professeur".
+
+
+@app.websocket("/ws/seances/{seance_id}")
+async def ws_seance(websocket: WebSocket, seance_id: int, eleve_id: int | None = None):
+    db = SessionLocal()
+    try:
+        seance = db.get(models.Seance, seance_id)
+        if seance is None:
+            await websocket.close(code=4404)
+            return
+
+        eleve_nom = None
+        if eleve_id is not None:
+            eleve = db.get(models.Eleve, eleve_id)
+            if eleve is not None:
+                eleve_nom = eleve.nom
+
+        await manager.connect(seance_id, websocket, eleve_id)
+
+        try:
+            # Snapshot de presence envoye uniquement au client qui vient de se
+            # connecter (pas un broadcast) : lui permet d'afficher tout de
+            # suite qui est deja en ligne sans attendre un evenement.
+            ids_en_ligne = manager.eleves_en_ligne(seance_id)
+            eleves_en_ligne = []
+            if ids_en_ligne:
+                eleves = db.query(models.Eleve).filter(models.Eleve.id.in_(ids_en_ligne)).all()
+                eleves_en_ligne = [{"id": e.id, "nom": e.nom} for e in eleves]
+            await websocket.send_text(
+                json.dumps({"type": "presence_snapshot", "eleves": eleves_en_ligne}, default=str)
+            )
+
+            if eleve_id is not None:
+                await manager.broadcast(
+                    seance_id,
+                    {"type": "presence_join", "eleve": {"id": eleve_id, "nom": eleve_nom}},
+                )
+
+            # Canal unidirectionnel serveur -> client pour l'instant : on ne
+            # traite pas de messages entrants, mais receive_text() est
+            # necessaire pour detecter la deconnexion du client.
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            manager.disconnect(seance_id, websocket)
+            if eleve_id is not None:
+                await manager.broadcast(seance_id, {"type": "presence_leave", "eleve_id": eleve_id})
+    finally:
+        db.close()
+
+
+# Presence (eleves "en ligne" sur une seance, via heartbeat cote client)
+# NB: conserve pour compatibilite / fallback, mais le WebSocket ci-dessus
+# est desormais la source de verite pour la presence en temps reel.
+
+# Un eleve est considere "en ligne" si son dernier heartbeat date de moins de
+# ONLINE_THRESHOLD_SECONDS (le frontend eleve envoie un heartbeat toutes les
+# 4 secondes en polling, donc 12s laisse 2-3 battements de marge).
+ONLINE_THRESHOLD_SECONDS = int(os.environ.get("ONLINE_THRESHOLD_SECONDS", 12))
+
+
+@app.post("/seances/{seance_id}/presence", response_model=schemas.EleveEnLigne)
+def signaler_presence(seance_id: int, payload: schemas.PresencePing, db: Session = Depends(get_db)):
+    """Heartbeat envoye periodiquement par le frontend eleve pendant qu'il
+    suit une seance : cree ou met a jour sa ligne de presence."""
+    get_or_404(db, models.Seance, seance_id, "Seance")
+    eleve = get_or_404(db, models.Eleve, payload.eleve_id, "Eleve")
+
+    presence = (
+        db.query(models.Presence)
+        .filter(
+            models.Presence.seance_id == seance_id,
+            models.Presence.eleve_id == payload.eleve_id,
+        )
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if presence is None:
+        presence = models.Presence(seance_id=seance_id, eleve_id=payload.eleve_id, derniere_activite=now)
+        db.add(presence)
+    else:
+        presence.derniere_activite = now
+
+    db.commit()
+    return schemas.EleveEnLigne(id=eleve.id, nom=eleve.nom, derniere_activite=now)
+
+
+@app.get("/seances/{seance_id}/presence", response_model=list[schemas.EleveEnLigne])
+def list_eleves_en_ligne(seance_id: int, db: Session = Depends(get_db)):
+    """Liste des eleves actuellement "en ligne" sur cette seance (heartbeat
+    recu il y a moins de ONLINE_THRESHOLD_SECONDS)."""
+    get_or_404(db, models.Seance, seance_id, "Seance")
+    seuil = datetime.now(timezone.utc) - timedelta(seconds=ONLINE_THRESHOLD_SECONDS)
+
+    rows = (
+        db.query(models.Eleve, models.Presence.derniere_activite)
+        .join(models.Presence, models.Presence.eleve_id == models.Eleve.id)
+        .filter(
+            models.Presence.seance_id == seance_id,
+            models.Presence.derniere_activite >= seuil,
+        )
+        .order_by(models.Eleve.nom)
+        .all()
+    )
+    return [
+        schemas.EleveEnLigne(id=eleve.id, nom=eleve.nom, derniere_activite=derniere_activite)
+        for eleve, derniere_activite in rows
+    ]
 
 
 # Contenu
