@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import api from "./api";
 import SuiviEleves from "./SuiviEleves";
+import DocumentsCours from "./DocumentsCours";
 
 const categoryStyles = {
   cours_precedent: "bg-fuchsia-100 text-fuchsia-700",
@@ -85,7 +86,7 @@ export default function EspaceProfesseur() {
   const [questions, setQuestions] = useState([]);
   const [elevesMap, setElevesMap] = useState({});
   const [filter, setFilter] = useState("all");
-  const [view, setView] = useState("questions"); // "questions" | "suivi"
+  const [view, setView] = useState("questions"); // "questions" | "suivi" | "documents"
 
   // Etats purement locaux (pas de colonnes correspondantes cote backend) :
   // lu / repondue / epinglee, garde en memoire par id de question.
@@ -218,6 +219,16 @@ export default function EspaceProfesseur() {
     );
   }
 
+  if (view === "documents") {
+    return (
+      <DocumentsCours
+        seanceId={seanceId}
+        cours={cours}
+        onBack={() => setView("questions")}
+      />
+    );
+  }
+
   return (
     <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_340px] gap-6 p-6">
@@ -235,6 +246,12 @@ export default function EspaceProfesseur() {
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
+                <button
+                  onClick={() => setView("documents")}
+                  className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"
+                >
+                  Documents
+                </button>
                 <button
                   onClick={() => setView("suivi")}
                   className="rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 hover:bg-pink-100"

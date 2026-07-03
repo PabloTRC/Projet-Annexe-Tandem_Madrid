@@ -167,6 +167,42 @@ function EcranConnexion({ coursList, loadingCours, coursError, onJoin, joining, 
 }
 
 // ==========================================================
+// PHASE 2 — Documents partagés par le professeur (téléchargement)
+// ==========================================================
+function DocumentsEleve({ documents, seanceId }) {
+  if (!documents || documents.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-2xl border border-pink-100 bg-white p-4 shadow-sm">
+      <h3 className="mb-2 text-sm font-bold text-slate-700">
+        Documents du cours ({documents.length})
+      </h3>
+      <div className="max-h-32 space-y-1.5 overflow-y-auto">
+        {documents.map((doc) => {
+          const nom = doc.donnees?.file_name || doc.donnees?.titre || `Document #${doc.id}`;
+          const telechargeable = Boolean(doc.donnees?.file_path);
+          return (
+            <div key={doc.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate text-slate-600">📄 {nom}</span>
+              {telechargeable ? (
+                <a
+                  href={api.downloadContenuUrl(seanceId, doc.id)}
+                  className="shrink-0 rounded-lg bg-pink-50 px-2.5 py-1 text-xs font-semibold text-pink-700 hover:bg-pink-100"
+                >
+                  Télécharger
+                </a>
+              ) : (
+                <span className="shrink-0 text-xs text-slate-400">{doc.type}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================================
 // PHASE 2 — Colonne gauche : formulaire de question
 // ==========================================================
 function FormulaireQuestion({ onSend, cours, sending }) {
@@ -339,6 +375,7 @@ export default function EspaceEleve() {
 
   const [questions, setQuestions] = useState([]);
   const [elevesMap, setElevesMap] = useState({});
+  const [documents, setDocuments] = useState([]);
   const [sending, setSending] = useState(false);
 
   const pollRef = useRef(null);
@@ -393,6 +430,7 @@ export default function EspaceEleve() {
 
     const refresh = () => {
       api.getQuestions(seanceId).then(setQuestions).catch(() => {});
+      api.getContenus(seanceId).then(setDocuments).catch(() => {});
       api
         .getEleves()
         .then((eleves) => {
@@ -438,7 +476,12 @@ export default function EspaceEleve() {
   return (
     <div className="h-full overflow-hidden bg-gradient-to-br from-pink-50/50 to-rose-50/30">
       <div className="grid h-full grid-cols-[1fr_2fr] gap-6 p-6">
-        <FormulaireQuestion onSend={handleSendQuestion} cours={cours} sending={sending} />
+        <div className="flex min-h-0 flex-col">
+          <DocumentsEleve documents={documents} seanceId={seanceId} />
+          <div className="min-h-0 flex-1">
+            <FormulaireQuestion onSend={handleSendQuestion} cours={cours} sending={sending} />
+          </div>
+        </div>
         <FluxQuestions
           questions={questions}
           currentEleveId={eleveId}
